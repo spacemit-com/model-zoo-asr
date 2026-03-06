@@ -1,0 +1,244 @@
+# ASR 组件
+
+## 1. 项目简介
+
+本组件为通用 ASR 封装，提供统一的 C++ 接口与 Python 绑定，**支持本地与云端**多种识别引擎，便于集成到 AI Agent 等应用中。当前已支持 SenseVoice（本地 ONNX），接口可扩展其他本地或云端后端。功能特性如下：
+
+| 类别     | 支持                                                                 |
+| -------- | -------------------------------------------------------------------- |
+| 部署方式 | **本地**（如 ONNX 推理）、**云端**（可扩展 HTTP/API 等）             |
+| 识别方式 | 文件/内存阻塞识别 `Call()`、`Recognize()`；流式识别 `Start()` + `SendAudioFrame()` + `Flush()` / `Stop()` |
+| 后端     | 当前支持 SenseVoice（本地 ONNX）；接口可扩展其他本地/云端引擎         |
+| 语言     | 中文、英文、日文、韩文、粤语、自动检测                               |
+| 接口     | C++（`include/asr_service.h`）、Python（`spacemit_asr`）             |
+
+## 2. 验证模型
+
+按以下顺序完成依赖安装、模型准备与示例运行。
+
+### 2.1. 安装依赖
+
+- **编译环境**：CMake ≥ 3.15，C++17 编译器（GCC/Clang/MSVC）。
+- **必选**：libsndfile、libfftw3、libcurl（若使用默认后端）。
+
+```bash
+sudo apt-get update
+sudo apt-get install -y build-essential cmake \
+  libsndfile1-dev libfftw3-dev libcurl4-openssl-dev
+```
+
+**可选：**
+
+- **Python 绑定**：`pip install pybind11` 或 `apt install python3-pybind11`
+- **流式示例（C++）**：需 audio 组件 + PortAudio，`apt install portaudio19-dev`
+
+### 2.2. 下载模型
+
+使用 SenseVoice 时需将模型放到默认路径 **`~/.cache/models/asr/sensevoice/`**，目录内需包含 `model_quant_optimized.onnx`、`vocab.txt`、`config.json`。
+
+**模型源：**
+
+- **进迭时空镜像（推荐）**：<https://archive.spacemit.com/spacemit-ai/model_zoo/asr/>  
+  提供 SenseVoice 模型压缩包，下载后解压到默认目录即可：
+
+  ```bash
+  mkdir -p ~/.cache/models/asr
+  cd ~/.cache/models/asr
+  wget https://archive.spacemit.com/spacemit-ai/model_zoo/asr/sensevoice.tar.gz
+  tar -xzf sensevoice.tar.gz
+  ```
+
+  解压后需得到 `sensevoice/` 目录（内含 `model_quant_optimized.onnx`、`vocab.txt`、`config.json`），即默认路径为 `~/.cache/models/asr/sensevoice/`。
+
+- **其他渠道**：从 SenseVoice 官方或内部渠道获取模型文件，解压/拷贝至上述目录。
+
+### 2.3. 下载测试音频
+
+建议先下载一段示例音频用于快速验证（16kHz 单声道 wav 更佳）：
+
+```bash
+mkdir -p ~/.cache/models/assets/audio
+cd ~/.cache/models/assets/audio
+wget https://archive.spacemit.com/spacemit-ai/model_zoo/assets/audio/001_zh_daily_weather.wav
+```
+
+更多音频资源可在 `https://archive.spacemit.com/spacemit-ai/model_zoo/assets/audio` 按需下载。
+
+### 2.3. 测试
+
+本节提供示例程序的编译与运行方式，便于开发者快速验证效果。使用前需先按下列两种方式之一完成编译，再运行对应示例。
+
+- **在 SDK 中验证**（2.3.1）：在已拉取的 SpacemiT Robot SDK 工程内用 `mm` 编译，产物部署到 `output/staging`，适合整机集成或与 LLM、TTS 等模块联调。
+- **独立构建下验证**（2.3.2）：在 ASR 组件目录下用 CMake 本地编译，不依赖完整 SDK，适合快速体验或在不使用 repo 的环境下使用。
+
+#### 2.3.1. 在 SDK 中验证
+
+**编译**：本组件已纳入 SpacemiT Robot SDK 时，在 SDK 根目录下执行。SDK 拉取与初始化见 [SpacemiT Robot SDK Manifest](https://github.com/spacemit-robotics/manifest)（使用 repo 时需先完成 `repo init`、`repo sync` 等）。
+
+```bash
+source build/envsetup.sh
+cd components/model_zoo/asr
+mm
+```
+
+构建产物会安装到 `output/staging`。
+
+**运行**：运行前在 SDK 根目录执行 `source build/envsetup.sh`，使 PATH 与库路径指向 `output/staging`，然后可执行：
+
+**C++ 文件识别：**
+
+```bash
+asr_file_demo ~/.cache/models/assets/audio/001_zh_daily_weather.wav
+```
+
+**Python 文件识别**（需已安装 Python 包或设置 PYTHONPATH 指向 SDK 构建产物）：
+
+```bash
+python python/examples/asr_file_demo.py ~/.cache/models/assets/audio/001_zh_daily_weather.wav
+```
+
+**流式识别**（需先以 `mm -DBUILD_STREAM_DEMO=ON` 编译开启流式示例后再运行）：
+
+```bash
+asr_stream_demo -l              # 列出麦克风设备
+asr_stream_demo 0 5              # 设备 0，录音 5 秒
+```
+
+Python 流式示例：`python python/examples/asr_stream_demo.py -l` / `--duration 5`（需已安装 `space_audio`）。
+
+#### 2.3.2. 独立构建下验证
+
+在 ASR 组件目录下完成编译后，运行下列示例。
+
+**C++ 文件识别（默认构建即包含）：**
+
+```bash
+cd /path/to/asr
+mkdir -p build && cd build
+cmake ..
+make -j$(nproc)
+./bin/asr_file_demo ~/.cache/models/assets/audio/001_zh_daily_weather.wav
+```
+
+**Python 文件识别：**
+
+```bash
+make -C build stt-install-python   # 或设置 PYTHONPATH
+python python/examples/asr_file_demo.py ~/.cache/models/assets/audio/001_zh_daily_weather.wav
+```
+
+**流式识别（默认未开启）**：若需测试 C++ 流式识别，需先安装 PortAudio（见 2.1 可选依赖），并指定 audio 组件路径后重新配置、构建、运行：
+
+```bash
+# 流式识别依赖 audio 组件，需先下载 audio 组件并指定路径
+cd build
+cmake .. -DBUILD_STREAM_DEMO=ON \
+  -DAUDIO_DIR=$(realpath ../../../multimedia/audio)
+make -j$(nproc)
+./bin/asr_stream_demo -l              # 列出麦克风设备
+./bin/asr_stream_demo 0 5            # 设备 0，录音 5 秒
+```
+
+Python 流式示例无需额外编译选项，安装 `space_audio` 后直接运行：
+
+```bash
+python python/examples/asr_stream_demo.py -l
+python python/examples/asr_stream_demo.py --duration 5
+```
+
+## 3. 应用开发
+
+本章说明如何在自有工程中**集成 ASR 并调用 API**。环境与依赖见 [2.1](#21-安装依赖)，模型准备见 [2.2](#22-下载模型)，编译与运行示例见 [2.3](#23-测试)。
+
+### 3.1. 构建与集成产物
+
+无论通过 [2.3.1](#231-在-sdk-中验证)（SDK）或 [2.3.2](#232-独立构建下验证)（独立构建）哪种方式编译，完成后**应用开发所需**的库与头文件如下，集成时只需**包含头文件并链接对应库**：
+
+| 产物 | 说明 |
+| ---- | ---- |
+| `include/asr_service.h` | **C++ API 头文件**，应用侧只需包含此头文件并链接下方库即可调用 |
+| `build/lib/libstt.a` | C++ 核心库，链接时使用 |
+| `build/lib/libsensevoice.a` | SenseVoice 后端库，链接时使用 |
+| `build/python/spacemit_asr/` | Python 包，`make stt-install-python` 安装后 `import spacemit_asr` |
+
+示例可执行文件（非集成必需）：`build/bin/asr_file_demo`、`build/bin/asr_stream_demo`（需 `-DBUILD_STREAM_DEMO=ON`）。运行与验证步骤见 [2.3.1](#231-在-sdk-中验证) 或 [2.3.2](#232-独立构建下验证)。
+
+### 3.2. API 使用
+
+**C++**：头文件 `include/asr_service.h` 为唯一 API 入口，实现为 PIMPL，无额外依赖。在业务代码中 `#include "asr_service.h"`，链接 `libstt.a` 与 `libsensevoice.a`（及 libsndfile 等），即可使用。
+
+```cpp
+#include "asr_service.h"
+using namespace SpacemiT;
+
+AsrConfig config = AsrConfig::Preset("sensevoice");
+config.language = "zh";
+config.punctuation = true;
+auto engine = std::make_shared<AsrEngine>(config);
+
+// 文件识别
+auto result = engine->Call("~/.cache/models/assets/audio/001_zh_daily_weather.wav");
+if (result) std::cout << result->GetText() << std::endl;
+
+// 内存识别（16kHz mono）
+std::vector<float> audio = load_audio();
+result = engine->Recognize(audio, 16000);
+```
+
+**Python**：安装后 `import spacemit_asr`，详见 `python/examples/` 与 [API.md](API.md)。
+
+```python
+import spacemit_asr
+text = spacemit_asr.recognize_file("~/.cache/models/assets/audio/001_zh_daily_weather.wav")
+# 或
+with spacemit_asr.Engine() as engine:
+    result = engine.recognize_file("~/.cache/models/assets/audio/001_zh_daily_weather.wav")
+    print(result.text, result.rtf)
+```
+
+**CMake 集成**：将本组件作为子目录引入，并链接 `stt`、包含头文件路径即可。
+
+```cmake
+add_subdirectory(asr)   # 或 stt，以实际子目录名为准
+target_link_libraries(your_target PRIVATE stt)
+target_include_directories(your_target PRIVATE ${ASR_SOURCE_DIR}/include)
+```
+
+## 4. 常见问题
+
+暂无。如有问题可提交 Issue。
+
+## 5. 版本与发布
+
+版本以本组件文档或仓库 tag 为准。
+
+| 版本   | 说明 |
+| ------ | ---- |
+| 0.1.0  | 提供 C++ / Python 接口，支持 SenseVoice、文件/内存阻塞识别与流式识别。 |
+
+## 6. 贡献方式
+
+欢迎参与贡献：提交 Issue 反馈问题，或通过 Pull Request 提交代码。
+
+- **编码规范**：C++ 代码遵循 [Google C++ 风格指南](https://google.github.io/styleguide/cppguide.html)。
+- **提交前检查**：若仓库提供 lint 脚本，请在提交前运行并通过检查。
+
+## 7. License
+
+本组件源码文件头声明为 Apache-2.0，最终以本目录 `LICENSE` 文件为准。
+
+## 8. 附录：性能指标
+
+以下数据基于 K3 平台（2 线程推理）实测，为阶段性信息，持续优化中，请以最新文档为准。
+
+| 模型 | 量化 | 音频时长 | 处理时间 | RTF |
+|------|------|----------|----------|-----|
+| SenseVoice (model_quant_optimized.onnx) | INT8 | 41s | 14.3s | 0.35 |
+
+测试音频文件可从 [archive.spacemit.com](https://archive.spacemit.com/spacemit-ai/model_zoo/assets/audio) 下载：
+```bash
+mkdir -p ~/.cache/models/assets/audio
+cd ~/.cache/models/assets/audio
+wget https://archive.spacemit.com/spacemit-ai/model_zoo/assets/audio/001_zh_daily_weather.wav
+./build/bin/asr_file_demo ~/.cache/models/assets/audio/001_zh_daily_weather.wav
+```

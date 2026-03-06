@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>stt</name>
+  <version>0.1.0</version>
+  <description>Speech-to-text inference using ONNX Runtime</description>
+  <system_depend check="pkg-config --exists sndfile">libsndfile1-dev</system_depend>
+  <system_depend check="pkg-config --exists libcurl">libcurl4-openssl-dev</system_depend>
+  <system_depend check="pkg-config --exists fftw3f">libfftw3-dev</system_depend>
+  <system_depend>onnxruntime</system_depend>
+  <system_depend>python3-spacemit-ort</system_depend>
+
+  <export>
+    <build_type>cmake</build_type>
+  </export>
+</package>

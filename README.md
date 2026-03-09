@@ -97,7 +97,7 @@ asr_file_demo ~/.cache/models/assets/audio/001_zh_daily_weather.wav
 python python/examples/asr_file_demo.py ~/.cache/models/assets/audio/001_zh_daily_weather.wav
 ```
 
-**流式识别**（需先以 `mm -DBUILD_STREAM_DEMO=ON` 编译开启流式示例后再运行）：
+**流式识别**（SDK 编译时默认已开启，可直接运行）：
 
 ```bash
 asr_stream_demo -l              # 列出麦克风设备

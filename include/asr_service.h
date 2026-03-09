@@ -108,8 +108,9 @@ public:
 // ASR 引擎，支持阻塞识别与流式识别。
 class AsrEngine {
 public:
-    explicit AsrEngine(const std::string& engine = "sensevoice",
-                      const std::string& model_dir = "");
+    explicit AsrEngine(
+        const std::string& engine = "sensevoice",
+        const std::string& model_dir = "");
     explicit AsrEngine(const AsrConfig& config);
     virtual ~AsrEngine();
 

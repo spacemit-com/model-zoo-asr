@@ -7,156 +7,183 @@
  * SpaceAudioSDK 静态文件识别示例
  *
  * Usage:
- *   ./asr_file_demo [audio_file] [model_dir]
+ *   ./asr_file_demo <audio1.wav> [audio2.wav ...] [--model-dir DIR] [--rounds N]
  *
  * Examples:
- *   ./asr_file_demo                              # 使用默认测试文件
  *   ./asr_file_demo ~/test.wav
- *   ./asr_file_demo ~/test.wav ~/.cache/models/asr/sensevoice
+ *   ./asr_file_demo a.wav b.wav c.wav
+ *   ./asr_file_demo a.wav b.wav --model-dir ~/.cache/models/asr/sensevoice
  */
 
+#include <cstdlib>
 #include <iomanip>
 #include <iostream>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "asr_service.h"
 
+struct FileResult {
+    int round;
+    std::string file;
+    double audio_ms;
+    double process_ms;
+    double rtf;
+    std::string text;
+};
+
 void printUsage(const char* program) {
-    std::cout << "Usage: " << program << " [audio_file] [model_dir]" << std::endl;
+    std::cout << "Usage: " << program << " <audio1.wav> [audio2.wav ...] [--model-dir DIR] [--rounds N]" << std::endl;
     std::cout << std::endl;
     std::cout << "Arguments:" << std::endl;
-    std::cout << "  audio_file  Path to WAV audio file (default: ~/ringbuffer.wav)" << std::endl;
-    std::cout << "  model_dir   Path to SenseVoice model directory" << std::endl;
-    std::cout << "              Default: ~/.cache/models/asr/sensevoice" << std::endl;
+    std::cout << "  audio files   One or more WAV audio files" << std::endl;
+    std::cout << "  --model-dir   Path to SenseVoice model directory" << std::endl;
+    std::cout << "                Default: ~/.cache/models/asr/sensevoice" << std::endl;
+    std::cout << "  --rounds N    Run N rounds of recognition (default: 1)" << std::endl;
     std::cout << std::endl;
     std::cout << "Examples:" << std::endl;
-    std::cout << "  " << program << std::endl;
     std::cout << "  " << program << " ~/test.wav" << std::endl;
-    std::cout << "  " << program << " ~/test.wav /path/to/models" << std::endl;
+    std::cout << "  " << program << " a.wav b.wav c.wav" << std::endl;
+    std::cout << "  " << program << " a.wav b.wav --model-dir /path/to/models" << std::endl;
 }
 
-void TestFileRecognition(const std::string& audio_file, const std::string& model_dir) {
+std::string expandHome(const std::string& path) {
+    if (!path.empty() && path[0] == '~') {
+        const char* home = getenv("HOME");
+        if (home) return std::string(home) + path.substr(1);
+    }
+    return path;
+}
+
+int main(int argc, char* argv[]) {
+    if (argc < 2 || std::string(argv[1]) == "-h" || std::string(argv[1]) == "--help") {
+        printUsage(argv[0]);
+        return (argc < 2) ? 1 : 0;
+    }
+
+    // Parse args: collect audio files and optional --model-dir
+    std::vector<std::string> audio_files;
+    std::string model_dir = "~/.cache/models/asr/sensevoice";
+    int rounds = 1;
+
+    for (int i = 1; i < argc; i++) {
+        if (std::string(argv[i]) == "--model-dir" && i + 1 < argc) {
+            model_dir = argv[++i];
+        } else if (std::string(argv[i]) == "--rounds" && i + 1 < argc) {
+            rounds = std::atoi(argv[++i]);
+            if (rounds < 1) rounds = 1;
+        } else {
+            audio_files.push_back(expandHome(argv[i]));
+        }
+    }
+    model_dir = expandHome(model_dir);
+
+    if (audio_files.empty()) {
+        std::cerr << "Error: no audio files specified" << std::endl;
+        return 1;
+    }
+
+    // Initialize engine once
     std::cout << "========================================" << std::endl;
     std::cout << "    SpaceAudioSDK 文件识别测试" << std::endl;
     std::cout << "========================================" << std::endl;
     std::cout << std::endl;
 
-    // 1. 使用 AsrConfig 创建引擎
-    std::cout << ">>> 创建 ASR 引擎 (使用 AsrConfig)..." << std::endl;
-
+    std::cout << ">>> 创建 ASR 引擎..." << std::endl;
     SpacemiT::AsrConfig config = SpacemiT::AsrConfig::Preset("sensevoice");
     config.model_dir = model_dir;
-    config.language = "zh";       // 设置语言
-    config.punctuation = true;    // 启用自动标点
+    config.language = "zh";
+    config.punctuation = true;
 
-    auto asrEngine = std::make_shared<SpacemiT::AsrEngine>(config);
-
-    if (!asrEngine->IsInitialized()) {
+    auto engine = std::make_shared<SpacemiT::AsrEngine>(config);
+    if (!engine->IsInitialized()) {
         std::cerr << "引擎初始化失败!" << std::endl;
-        return;
+        return 1;
     }
 
-    // 显示当前配置
-    auto cfg = asrEngine->GetConfig();
+    auto cfg = engine->GetConfig();
     std::cout << "引擎类型: " << cfg.engine << std::endl;
     std::cout << "语言: " << cfg.language << std::endl;
     std::cout << "标点: " << (cfg.punctuation ? "启用" : "禁用") << std::endl;
     std::cout << "采样率: " << cfg.sample_rate << " Hz" << std::endl;
-    std::cout << "音频文件: " << audio_file << std::endl;
+    std::cout << "文件数: " << audio_files.size() << std::endl;
+    std::cout << "轮次: " << rounds << std::endl;
     std::cout << std::endl;
 
-    // 2. 调用 Call 方法 (阻塞直到完成)
-    std::cout << ">>> 开始识别文件..." << std::endl;
-    auto result = asrEngine->Call(audio_file);
+    // Recognize each file, multiple rounds
+    std::vector<FileResult> results;
 
-    // 3. 处理结果
-    if (result && !result->IsEmpty()) {
-        std::cout << std::endl;
-        std::cout << "========================================" << std::endl;
-        std::cout << "           识别结果" << std::endl;
-        std::cout << "========================================" << std::endl;
-
-        // 使用 GetText() 获取完整文本
-        std::cout << "完整文本: " << result->GetText() << std::endl;
-        std::cout << "是否最终: " << (result->IsSentenceEnd() ? "是" : "否") << std::endl;
-        std::cout << std::endl;
-
-        // 使用 GetSentence() 获取主句子
-        SpacemiT::Sentence sentence = result->GetSentence();
-        std::cout << "--- 主句子 (GetSentence) ---" << std::endl;
-        std::cout << "文本: " << sentence.text << std::endl;
-        std::cout << "开始时间: " << sentence.begin_time << " ms" << std::endl;
-        std::cout << "结束时间: " << sentence.end_time << " ms" << std::endl;
-        std::cout << "置信度: " << std::fixed << std::setprecision(2) << sentence.confidence << std::endl;
-        std::cout << std::endl;
-
-        // 使用 GetSentences() 获取所有句子
-        auto sentences = result->GetSentences();
-        std::cout << "--- 所有句子 (GetSentences) ---" << std::endl;
-        std::cout << "句子数量: " << sentences.size() << std::endl;
-        for (size_t i = 0; i < sentences.size(); ++i) {
-            const auto& s = sentences[i];
-            std::cout << "[" << i << "] " << s.text
-                << " (" << s.begin_time << "-" << s.end_time << " ms, "
-                << "conf=" << std::fixed << std::setprecision(2) << s.confidence << ")"
-                << std::endl;
+    for (int round = 0; round < rounds; ++round) {
+        if (rounds > 1) {
+            std::cout << "======== 第 " << (round + 1) << "/" << rounds << " 轮 ========" << std::endl;
         }
-        std::cout << std::endl;
 
-        std::cout << "--- 性能指标 ---" << std::endl;
-        std::cout << "Request ID: " << result->GetRequestId() << std::endl;
-        std::cout << "音频时长: " << result->GetAudioDuration() << " ms" << std::endl;
-        std::cout << "处理时间: " << result->GetProcessingTime() << " ms" << std::endl;
-        std::cout << "RTF: " << std::fixed << std::setprecision(3) << result->GetRTF() << std::endl;
-        std::cout << std::endl;
+        for (size_t i = 0; i < audio_files.size(); ++i) {
+            const auto& file = audio_files[i];
+            std::cout << "----------------------------------------" << std::endl;
+            std::cout << "[" << (i + 1) << "/" << audio_files.size() << "] " << file << std::endl;
 
-        std::cout << "--- 延迟信息 ---" << std::endl;
-        std::cout << "Last Request ID: " << asrEngine->GetLastRequestId() << std::endl;
-        std::cout << "首包延迟: " << asrEngine->GetFirstPackageDelay() << " ms" << std::endl;
-        std::cout << "尾包延迟: " << asrEngine->GetLastPackageDelay() << " ms" << std::endl;
-        std::cout << "========================================" << std::endl;
+            auto result = engine->Call(file);
 
-        // 4. 获取 JSON 响应 (可选)
-        std::cout << std::endl;
-        std::cout << ">>> JSON 响应 (GetResponse):" << std::endl;
-        std::cout << asrEngine->GetResponse() << std::endl;
+            if (result && !result->IsEmpty()) {
+                FileResult fr;
+                fr.round = round + 1;
+                fr.file = file;
+                fr.text = result->GetText();
+                fr.audio_ms = result->GetAudioDuration();
+                fr.process_ms = result->GetProcessingTime();
+                fr.rtf = result->GetRTF();
+                results.push_back(fr);
 
-    } else {
-        std::cerr << "识别失败或未检测到语音" << std::endl;
-    }
-}
-
-int main(int argc, char* argv[]) {
-    // 检查帮助选项
-    if (argc >= 2 && (std::string(argv[1]) == "-h" || std::string(argv[1]) == "--help")) {
-        printUsage(argv[0]);
-        return 0;
-    }
-
-    // 解析参数
-    std::string audio_file = "~/ringbuffer.wav";  // 默认测试文件
-    std::string model_dir = "~/.cache/models/asr/sensevoice";  // 空则使用默认路径
-
-    if (argc >= 2) {
-        audio_file = argv[1];
-    }
-    if (argc >= 3) {
-        model_dir = argv[2];
-    }
-
-    // 展开 ~ 为 HOME 目录
-    if (!audio_file.empty() && audio_file[0] == '~') {
-        const char* home = getenv("HOME");
-        if (home) {
-            audio_file = std::string(home) + audio_file.substr(1);
+                std::cout << "文本: " << fr.text << std::endl;
+                std::cout << "音频: " << std::fixed << std::setprecision(0) << fr.audio_ms << " ms"
+                    << "  处理: " << fr.process_ms << " ms"
+                    << "  RTF: " << std::setprecision(3) << fr.rtf << std::endl;
+            } else {
+                std::cerr << "识别失败或未检测到语音" << std::endl;
+            }
+            std::cout << std::endl;
         }
     }
 
-    TestFileRecognition(audio_file, model_dir);
+    // Summary table
+    if (results.size() > 1) {
+        std::cout << "========================================" << std::endl;
+        std::cout << "              汇总" << std::endl;
+        std::cout << "========================================" << std::endl;
+        std::cout << std::left << std::setw(40) << "文件"
+            << std::right << std::setw(10) << "音频(ms)"
+            << std::setw(10) << "处理(ms)"
+            << std::setw(8) << "RTF" << std::endl;
+        std::cout << std::string(68, '-') << std::endl;
 
-    std::cout << std::endl;
-    std::cout << "Done." << std::endl;
+        double total_audio = 0, total_process = 0;
+        for (const auto& r : results) {
+            // Extract filename from path
+            std::string name = r.file;
+            size_t pos = name.rfind('/');
+            if (pos != std::string::npos) name = name.substr(pos + 1);
 
-    return 0;
+            std::cout << std::left << std::setw(40) << name
+                << std::right << std::fixed
+                << std::setw(10) << std::setprecision(0) << r.audio_ms
+                << std::setw(10) << r.process_ms
+                << std::setw(8) << std::setprecision(3) << r.rtf << std::endl;
+            total_audio += r.audio_ms;
+            total_process += r.process_ms;
+        }
+
+        std::cout << std::string(68, '-') << std::endl;
+        std::cout << std::left << std::setw(40) << "Total"
+            << std::right << std::fixed
+            << std::setw(10) << std::setprecision(0) << total_audio
+            << std::setw(10) << total_process
+            << std::setw(8) << std::setprecision(3) << (total_process / total_audio) << std::endl;
+    }
+
+    engine.reset();
+    std::cout << std::endl << "Done." << std::endl;
+    _Exit(0);
 }
+

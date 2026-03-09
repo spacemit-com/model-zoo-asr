@@ -24,7 +24,15 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 # 使用方法:
 #   cmake .. -DBUILD_STREAM_DEMO=ON
 #
-option(BUILD_STREAM_DEMO "Build stream demo and Python bindings (requires audio component)" OFF)
+# 检测是否在 SDK 仓库中编译（SDK 仓库根目录应存在 build/envsetup.sh）
+set(_SDK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../..")
+if(EXISTS "${_SDK_ROOT}/build/envsetup.sh")
+    set(_IN_SDK_BUILD ON)
+else()
+    set(_IN_SDK_BUILD OFF)
+endif()
+
+option(BUILD_STREAM_DEMO "Build stream demo and Python bindings (requires audio component)" ${_IN_SDK_BUILD})
 option(BUILD_PYTHON_BINDINGS "Build Python bindings (requires BUILD_STREAM_DEMO=ON)" ON)
 
 # -------------------------------------------------------

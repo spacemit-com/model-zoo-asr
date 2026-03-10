@@ -14,15 +14,10 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 #
 # 需要额外依赖:
 #   1. PortAudio: brew install portaudio (macOS) / apt install portaudio19-dev (Linux)
-#   2. audio 组件: 在 SDK 仓库中位于 components/multimedia/audio
-#      也支持独立开发时放在 stt 同级目录:
-#        VOICE/
-#        ├── stt/    # 本项目
-#        └── audio/  # audio 组件
-#      或通过 -DAUDIO_DIR=/path/to/audio 手动指定
+#   2. audio 组件: SDK 编译时通过 package.xml 依赖自动构建安装到 staging
 #
 # 使用方法:
-#   cmake .. -DBUILD_STREAM_DEMO=ON
+#   SDK 编译时默认开启；独立编译时: cmake .. -DBUILD_STREAM_DEMO=ON
 #
 # 检测是否在 SDK 仓库中编译（SDK 仓库根目录应存在 build/envsetup.sh）
 set(_SDK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../..")
@@ -77,115 +72,19 @@ pkg_check_modules(SAMPLERATE samplerate)
 # -------------------------------------------------------
 # Audio Component (optional, for stream demo)
 # -------------------------------------------------------
-# Resolve audio component path and layout.
-set(AUDIO_INC_DIR "")
-set(AUDIO_SRC_DIR "")
-set(_AUDIO_SEARCH_PATHS
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../multimedia/audio   # SDK repo
-    ${CMAKE_CURRENT_SOURCE_DIR}/../audio                 # Standalone sibling
-)
-
-if(AUDIO_DIR)
-    list(PREPEND _AUDIO_SEARCH_PATHS ${AUDIO_DIR})
-endif()
-
-foreach(_path ${_AUDIO_SEARCH_PATHS})
-    if(NOT IS_DIRECTORY ${_path}/src)
-        continue()
-    endif()
-
-    if(IS_DIRECTORY ${_path}/include)
-        get_filename_component(AUDIO_DIR ${_path} ABSOLUTE)
-        set(AUDIO_INC_DIR ${AUDIO_DIR}/include)
-        set(AUDIO_SRC_DIR ${AUDIO_DIR}/src)
-        break()
-    endif()
-
-    if(IS_DIRECTORY ${_path}/inc)
-        get_filename_component(AUDIO_DIR ${_path} ABSOLUTE)
-        set(AUDIO_INC_DIR ${AUDIO_DIR}/inc)
-        set(AUDIO_SRC_DIR ${AUDIO_DIR}/src)
-        break()
-    endif()
-endforeach()
-
-# Check if audio component exists
 if(BUILD_STREAM_DEMO)
-    if(NOT AUDIO_DIR OR NOT AUDIO_INC_DIR OR NOT AUDIO_SRC_DIR)
+    find_library(SPACE_AUDIO_LIB space_audio)
+    find_library(AUDIO_RESAMPLER_LIB audio_resampler)
+    find_path(AUDIO_INC_DIR audio_base.hpp)
+
+    if(NOT SPACE_AUDIO_LIB OR NOT AUDIO_RESAMPLER_LIB OR NOT AUDIO_INC_DIR)
         message(FATAL_ERROR
             "BUILD_STREAM_DEMO=ON but audio component not found!\n"
-            "Expected: <audio_dir>/src and <audio_dir>/include (or legacy <audio_dir>/inc)\n"
-            "Searched defaults:\n"
-            "  - components/multimedia/audio\n"
-            "  - ../audio\n"
-            "You can specify manually with -DAUDIO_DIR=/path/to/audio"
-        )
+            "Install audio component first, or disable with -DBUILD_STREAM_DEMO=OFF")
     endif()
 
     # PortAudio (required for stream demo)
     pkg_check_modules(PORTAUDIO REQUIRED portaudio-2.0)
-    if(NOT PORTAUDIO_FOUND)
-        message(FATAL_ERROR
-            "BUILD_STREAM_DEMO=ON but PortAudio not found!\n"
-            "Install PortAudio:\n"
-            "  macOS: brew install portaudio\n"
-            "  Linux: apt install portaudio19-dev"
-        )
-    endif()
-endif()
-
-# -------------------------------------------------------
-# Resampler Library (requires audio component)
-# -------------------------------------------------------
-if(BUILD_STREAM_DEMO)
-    set(RESAMPLER_SOURCES
-        ${AUDIO_SRC_DIR}/resampler.cpp
-        ${AUDIO_SRC_DIR}/resampler_rvv.cpp
-    )
-
-    add_library(stt_resampler STATIC ${RESAMPLER_SOURCES})
-
-    target_include_directories(stt_resampler PUBLIC
-        ${AUDIO_INC_DIR}
-    )
-
-    # Enable libsamplerate if available
-    if(SAMPLERATE_FOUND)
-        target_compile_definitions(stt_resampler PUBLIC USE_LIBSAMPLERATE)
-        target_include_directories(stt_resampler PRIVATE ${SAMPLERATE_INCLUDE_DIRS})
-        target_link_libraries(stt_resampler PUBLIC ${SAMPLERATE_LIBRARIES})
-        target_link_directories(stt_resampler PUBLIC ${SAMPLERATE_LIBRARY_DIRS})
-    endif()
-
-    set_target_properties(stt_resampler PROPERTIES
-        ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
-    )
-endif()
-
-# -------------------------------------------------------
-# SpaceAudio Library (for stream demo)
-# -------------------------------------------------------
-if(BUILD_STREAM_DEMO)
-    add_library(stt_space_audio STATIC
-        ${AUDIO_SRC_DIR}/space_audio.cpp
-        ${AUDIO_SRC_DIR}/audio_stream.cpp
-    )
-
-    target_include_directories(stt_space_audio PUBLIC
-        ${AUDIO_INC_DIR}
-        ${PORTAUDIO_INCLUDE_DIRS}
-    )
-
-    target_include_directories(stt_space_audio PRIVATE
-        ${AUDIO_INC_DIR}/internal
-    )
-
-    target_link_libraries(stt_space_audio PUBLIC ${PORTAUDIO_LIBRARIES})
-    target_link_directories(stt_space_audio PUBLIC ${PORTAUDIO_LIBRARY_DIRS})
-
-    set_target_properties(stt_space_audio PROPERTIES
-        ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
-    )
 endif()
 
 # -------------------------------------------------------
@@ -238,7 +137,7 @@ target_include_directories(stt PUBLIC
 # Conditionally add resampler include
 if(BUILD_STREAM_DEMO)
     target_include_directories(stt PUBLIC ${AUDIO_INC_DIR})
-    target_link_libraries(stt PUBLIC stt_resampler)
+    target_link_libraries(stt PUBLIC ${AUDIO_RESAMPLER_LIB} ${SAMPLERATE_LIBRARIES})
 endif()
 
 target_link_libraries(stt
@@ -309,14 +208,24 @@ if(BUILD_STREAM_DEMO)
 
     target_link_libraries(asr_stream_demo
         PRIVATE stt
-        PRIVATE stt_space_audio
-        PRIVATE stt_resampler
+        PRIVATE ${SPACE_AUDIO_LIB}
+        PRIVATE ${AUDIO_RESAMPLER_LIB}
+        PRIVATE ${PORTAUDIO_LIBRARIES}
+        PRIVATE ${SAMPLERATE_LIBRARIES}
         PRIVATE ${SNDFILE_LIBRARIES}
         PRIVATE pthread
         PRIVATE m
     )
 
-    target_link_directories(asr_stream_demo PRIVATE ${SNDFILE_LIBRARY_DIRS})
+    target_link_directories(asr_stream_demo PRIVATE
+        ${SNDFILE_LIBRARY_DIRS}
+        ${PORTAUDIO_LIBRARY_DIRS}
+        ${SAMPLERATE_LIBRARY_DIRS}
+    )
+
+    if(SAMPLERATE_FOUND)
+        target_compile_definitions(asr_stream_demo PRIVATE USE_LIBSAMPLERATE)
+    endif()
 
     set_target_properties(asr_stream_demo PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin

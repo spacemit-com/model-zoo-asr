@@ -416,6 +416,12 @@ AsrEngine::AsrEngine(const AsrConfig& config)
 }
 
 AsrEngine::~AsrEngine() {
+    // Clear callback before shutdown to prevent dangling pointer access
+    if (impl_->engine) {
+        impl_->engine->setCallback(nullptr);
+    }
+    impl_->callback_adapter.reset();
+
     if (impl_->engine) {
         impl_->engine->shutdown();
     }

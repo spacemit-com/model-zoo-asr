@@ -30,7 +30,7 @@ sudo apt-get install -y build-essential cmake \
 **可选：**
 
 - **Python 绑定**：`pip install pybind11` 或 `apt install python3-pybind11`
-- **流式示例（C++）**：需 audio 组件 + PortAudio，`apt install portaudio19-dev`
+- **流式示例（C++）**：需 audio 组件 + PortAudio，`apt install portaudio19-dev`。SDK 编译时默认开启，独立编译时默认关闭（`cmake .. -DBUILD_STREAM_DEMO=ON`）
 
 ### 2.2. 下载模型
 
@@ -101,7 +101,7 @@ python python/examples/asr_file_demo.py ~/.cache/models/assets/audio/001_zh_dail
 
 ```bash
 asr_stream_demo -l              # 列出麦克风设备
-asr_stream_demo 0 5              # 设备 0，录音 5 秒
+asr_stream_demo -i 0 -t 5       # 设备 0，录音 5 秒
 ```
 
 Python 流式示例：`python python/examples/asr_stream_demo.py -l` / `--duration 5`（需已安装 `space_audio`）。
@@ -127,16 +127,14 @@ make -C build stt-install-python   # 或设置 PYTHONPATH
 python python/examples/asr_file_demo.py ~/.cache/models/assets/audio/001_zh_daily_weather.wav
 ```
 
-**流式识别（默认未开启）**：若需测试 C++ 流式识别，需先安装 PortAudio（见 2.1 可选依赖），并指定 audio 组件路径后重新配置、构建、运行：
+**流式识别（默认未开启）**：需先安装 PortAudio（见 2.1 可选依赖）和 audio 组件，然后开启流式示例重新构建：
 
 ```bash
-# 流式识别依赖 audio 组件，需先下载 audio 组件并指定路径
 cd build
-cmake .. -DBUILD_STREAM_DEMO=ON \
-  -DAUDIO_DIR=$(realpath ../../../multimedia/audio)
+cmake .. -DBUILD_STREAM_DEMO=ON
 make -j$(nproc)
 ./bin/asr_stream_demo -l              # 列出麦克风设备
-./bin/asr_stream_demo 0 5            # 设备 0，录音 5 秒
+./bin/asr_stream_demo -i 0 -t 5      # 设备 0，录音 5 秒
 ```
 
 Python 流式示例无需额外编译选项，安装 `space_audio` 后直接运行：
@@ -161,7 +159,7 @@ python python/examples/asr_stream_demo.py --duration 5
 | `build/lib/libsensevoice.a` | SenseVoice 后端库，链接时使用 |
 | `build/python/spacemit_asr/` | Python 包，`make stt-install-python` 安装后 `import spacemit_asr` |
 
-示例可执行文件（非集成必需）：`build/bin/asr_file_demo`、`build/bin/asr_stream_demo`（需 `-DBUILD_STREAM_DEMO=ON`）。运行与验证步骤见 [2.3.1](#231-在-sdk-中验证) 或 [2.3.2](#232-独立构建下验证)。
+示例可执行文件（非集成必需）：`build/bin/asr_file_demo`、`build/bin/asr_stream_demo`（SDK 默认开启，独立编译需 `-DBUILD_STREAM_DEMO=ON`）。运行与验证步骤见 [2.3.1](#231-在-sdk-中验证) 或 [2.3.2](#232-独立构建下验证)。
 
 ### 3.2. API 使用
 

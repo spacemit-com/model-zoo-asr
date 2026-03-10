@@ -12,13 +12,13 @@
  * 音频流程: 48kHz stereo → 重采样 → 16kHz mono → ASR
  *
  * Usage:
- *   ./asr_stream_demo [options] [device_index] [total_seconds]
+ *   ./asr_stream_demo [选项]
  *
  * Examples:
  *   ./asr_stream_demo                # 默认设备，总时长 30 秒
  *   ./asr_stream_demo -l             # 列出设备
- *   ./asr_stream_demo 0 60           # 设备 0，总时长 60 秒
- *   ./asr_stream_demo -i 5           # 每 5 秒 flush 一次
+ *   ./asr_stream_demo -i 0 -t 60    # 设备 0，总时长 60 秒
+ *   ./asr_stream_demo -f 5          # 每 5 秒 flush 一次
  */
 
 #include <csignal>
@@ -160,22 +160,20 @@ private:
 // =============================================================================
 
 void printUsage(const char* program) {
-    std::cout << "Usage: " << program << " [options] [device_index] [total_seconds]" << std::endl;
+    std::cout << "Usage: " << program << " [选项]" << std::endl;
     std::cout << std::endl;
     std::cout << "Options:" << std::endl;
+    std::cout << "  -i, --input <N>    输入设备索引 (-1 为默认)" << std::endl;
+    std::cout << "  -t, --time <N>     录音时长秒数 (默认 30)" << std::endl;
+    std::cout << "  -f, --flush <N>    Flush 间隔秒数 (默认 3)" << std::endl;
     std::cout << "  -l, --list         列出可用音频设备" << std::endl;
-    std::cout << "  -i, --interval N   Flush 间隔秒数 (默认 3)" << std::endl;
     std::cout << "  -h, --help         显示帮助" << std::endl;
-    std::cout << std::endl;
-    std::cout << "Arguments:" << std::endl;
-    std::cout << "  device_index     音频设备索引 (-1 为默认)" << std::endl;
-    std::cout << "  total_seconds    总录音时长（秒，默认 30）" << std::endl;
     std::cout << std::endl;
     std::cout << "Examples:" << std::endl;
     std::cout << "  " << program << "              # 默认设备，30 秒，每 3 秒 flush" << std::endl;
     std::cout << "  " << program << " -l           # 列出设备" << std::endl;
-    std::cout << "  " << program << " 0 60         # 设备 0，60 秒" << std::endl;
-    std::cout << "  " << program << " -i 5         # 每 5 秒 flush 一次" << std::endl;
+    std::cout << "  " << program << " -i 0 -t 60   # 设备 0，60 秒" << std::endl;
+    std::cout << "  " << program << " -f 5         # 每 5 秒 flush 一次" << std::endl;
 }
 
 void listDevices() {
@@ -305,7 +303,6 @@ int main(int argc, char* argv[]) {
     int total_seconds = 30;
     int flush_interval = 3;  // 每 3 秒 flush 一次
 
-    int positional_arg = 0;
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "-l" || arg == "--list") {
@@ -314,15 +311,12 @@ int main(int argc, char* argv[]) {
         } else if (arg == "-h" || arg == "--help") {
             printUsage(argv[0]);
             return 0;
-        } else if ((arg == "-i" || arg == "--interval") && i + 1 < argc) {
+        } else if ((arg == "-f" || arg == "--flush") && i + 1 < argc) {
             flush_interval = std::stoi(argv[++i]);
-        } else if (arg[0] != '-') {
-            if (positional_arg == 0) {
-                device_index = std::stoi(arg);
-            } else if (positional_arg == 1) {
-                total_seconds = std::stoi(arg);
-            }
-            positional_arg++;
+        } else if ((arg == "-i" || arg == "--input") && i + 1 < argc) {
+            device_index = std::stoi(argv[++i]);
+        } else if ((arg == "-t" || arg == "--time") && i + 1 < argc) {
+            total_seconds = std::stoi(argv[++i]);
         }
     }
 

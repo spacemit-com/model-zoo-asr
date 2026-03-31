@@ -52,6 +52,8 @@ find_library(ONNXRUNTIME_LIB
     /opt/homebrew/lib
 )
 
+option(USE_SPACEMIT_EP "Enable SpaceMIT Execution Provider for ASR" ${_IN_SDK_BUILD})
+
 # libsndfile
 pkg_check_modules(SNDFILE REQUIRED sndfile)
 
@@ -192,6 +194,28 @@ set_target_properties(asr_file_demo PROPERTIES
 
 install(TARGETS asr_file_demo RUNTIME DESTINATION bin)
 
+if(USE_SPACEMIT_EP)
+    find_path(SPACEMIT_ORT_INCLUDE_DIR
+        NAMES spacemit_ort_env.h
+        PATHS ${ONNXRUNTIME_INCLUDE_DIR} /usr/include /usr/local/include
+        PATH_SUFFIXES onnxruntime
+    )
+    find_library(SPACEMIT_EP_LIB
+        NAMES spacemit_ep
+        PATHS /usr/local/lib /usr/lib
+    )
+    if(SPACEMIT_ORT_INCLUDE_DIR AND SPACEMIT_EP_LIB)
+        target_compile_definitions(sensevoice PRIVATE USE_SPACEMIT_EP)
+        target_include_directories(sensevoice PRIVATE ${SPACEMIT_ORT_INCLUDE_DIR})
+        target_link_libraries(sensevoice PUBLIC ${SPACEMIT_EP_LIB})
+        target_compile_definitions(asr_file_demo PRIVATE USE_SPACEMIT_EP)
+        target_include_directories(asr_file_demo PRIVATE ${SPACEMIT_ORT_INCLUDE_DIR})
+        message(STATUS "SpaceMIT EP enabled: ${SPACEMIT_ORT_INCLUDE_DIR}, lib: ${SPACEMIT_EP_LIB}")
+    else()
+        message(WARNING "SpaceMIT EP not found (header=${SPACEMIT_ORT_INCLUDE_DIR}, lib=${SPACEMIT_EP_LIB}), USE_SPACEMIT_EP ignored")
+    endif()
+endif()
+
 message(STATUS "ASR file demo executable enabled")
 
 # -------------------------------------------------------
@@ -225,6 +249,11 @@ if(BUILD_STREAM_DEMO)
 
     if(SAMPLERATE_FOUND)
         target_compile_definitions(asr_stream_demo PRIVATE USE_LIBSAMPLERATE)
+    endif()
+
+    if(USE_SPACEMIT_EP AND SPACEMIT_ORT_INCLUDE_DIR)
+        target_compile_definitions(asr_stream_demo PRIVATE USE_SPACEMIT_EP)
+        target_include_directories(asr_stream_demo PRIVATE ${SPACEMIT_ORT_INCLUDE_DIR})
     endif()
 
     set_target_properties(asr_stream_demo PROPERTIES

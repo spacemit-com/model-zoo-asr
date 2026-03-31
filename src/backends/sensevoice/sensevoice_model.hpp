@@ -61,6 +61,7 @@ public:
 
         std::string language = "zh";    ///< Language code: zh, en, ja, ko, yue, auto
         bool use_itn = true;           ///< Enable Inverse Text Normalization
+        std::string provider = "spacemit";  ///< "cpu" or "spacemit"
     };
 
     /**

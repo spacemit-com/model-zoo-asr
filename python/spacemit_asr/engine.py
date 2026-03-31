@@ -80,6 +80,15 @@ class Config:
         self._config.punctuation_enabled = enabled
         return self
 
+    @property
+    def provider(self) -> str:
+        """Get/set execution provider: 'cpu' or 'spacemit'"""
+        return self._config.extra_params.get("provider", "spacemit")
+
+    @provider.setter
+    def provider(self, value: str):
+        self._config.extra_params["provider"] = value
+
 
 class Result:
     """Recognition result wrapper"""

@@ -24,6 +24,11 @@ def main():
                         help='识别语言 (默认: zh)')
     parser.add_argument('--list-backends', action='store_true',
                         help='列出可用后端')
+    parser.add_argument('--provider', '-p', default='spacemit',
+                        choices=['cpu', 'spacemit'],
+                        help='执行提供程序 (默认: spacemit)')
+    parser.add_argument('--rounds', '-r', type=int, default=1,
+                        help='重复识别轮次 (默认: 1)')
 
     args = parser.parse_args()
 
@@ -64,19 +69,41 @@ def main():
     config = spacemit_asr.Config(args.model_dir)
     config.language = lang_map[args.language]
     config.punctuation_enabled = True
+    config.provider = args.provider
 
     # 识别
     print(f"\n文件: {args.file}")
     print(f"语言: {args.language}")
+    print(f"Provider: {args.provider}")
     print("正在识别...\n")
 
     with spacemit_asr.Engine(config) as engine:
-        result = engine.recognize_file(args.file)
+        import time
+        import numpy as np
+        print(">>> Warmup...")
+        silence = np.zeros(8000, dtype=np.float32)
+        t0 = time.monotonic()
+        engine.recognize(silence)
+        warmup_ms = (time.monotonic() - t0) * 1000
+        print(f"Warmup done: {warmup_ms:.0f} ms\n")
 
-        print(f"识别结果: {result.text}")
-        print(f"音频时长: {result.audio_duration_ms} ms")
-        print(f"处理时间: {result.processing_time_ms} ms")
-        print(f"RTF: {result.rtf:.3f}")
+        total_audio_ms = 0
+        total_proc_ms = 0
+        for round_idx in range(args.rounds):
+            result = engine.recognize_file(args.file)
+            total_audio_ms += result.audio_duration_ms
+            total_proc_ms += result.processing_time_ms
+            print(f"[轮次 {round_idx + 1}/{args.rounds}] {result.text}")
+
+        if args.rounds > 1:
+            print(f"\n--- 汇总 ({args.rounds} 轮) ---")
+            print(f"平均音频时长: {total_audio_ms // args.rounds} ms")
+            print(f"平均处理时间: {total_proc_ms // args.rounds} ms")
+            print(f"平均 RTF: {total_proc_ms / max(total_audio_ms, 1):.3f}")
+        else:
+            print(f"音频时长: {result.audio_duration_ms} ms")
+            print(f"处理时间: {result.processing_time_ms} ms")
+            print(f"RTF: {result.rtf:.3f}")
 
 
 if __name__ == "__main__":

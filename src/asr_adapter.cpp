@@ -403,6 +403,9 @@ AsrEngine::AsrEngine(const AsrConfig& config)
     internal_config.language = Impl::languageFromString(config.language);
     internal_config.punctuation_enabled = config.punctuation;
     internal_config.sample_rate = config.sample_rate;
+    if (!config.provider.empty()) {
+        internal_config.extra_params["provider"] = config.provider;
+    }
 
     // 初始化引擎
     auto err = impl_->engine->initialize(internal_config);

@@ -10,12 +10,17 @@
 
 #include "backends/sensevoice/sensevoice_model.hpp"
 
+#ifdef USE_SPACEMIT_EP
+#include "spacemit_ort_env.h"
+#endif
+
 #include <algorithm>
 #include <chrono>
 #include <iomanip>
 #include <iostream>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "backends/sensevoice/feature_extractor.hpp"
@@ -64,13 +69,40 @@ bool SenseVoiceModel::initialize() {
 bool SenseVoiceModel::initializeSession() {
     try {
         Ort::SessionOptions session_options;
-        session_options.SetIntraOpNumThreads(config_.num_threads);
+
+        // EP 用自己的线程池（SPACEMIT_EP_INTRA_THREAD_NUM），ORT intra_op 设 1
+#ifdef USE_SPACEMIT_EP
+        if (config_.provider == "spacemit") {
+            session_options.SetIntraOpNumThreads(1);
+        } else {
+#endif
+            session_options.SetIntraOpNumThreads(config_.num_threads);
+#ifdef USE_SPACEMIT_EP
+        }
+#endif
         session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
         session_options.SetExecutionMode(ExecutionMode::ORT_PARALLEL);
 
-        // Disable memory arena for embedded devices
-        session_options.DisableCpuMemArena();
-        session_options.DisableMemPattern();
+#ifdef USE_SPACEMIT_EP
+        if (config_.provider == "spacemit") {
+            std::unordered_map<std::string, std::string> ep_options = {
+                {"SPACEMIT_EP_INTRA_THREAD_NUM", std::to_string(config_.num_threads)}
+            };
+            Ort::Status status = Ort::SessionOptionsSpaceMITEnvInit(session_options, ep_options);
+            if (status.IsOK()) {
+                std::cout << "[ASR] SpaceMIT EP initialized (threads=" << config_.num_threads << ")" << std::endl;
+            } else {
+                std::cerr << "[ASR] SpaceMIT EP init failed: "
+                    << status.GetErrorMessage() << ", fallback to CPU" << std::endl;
+            }
+        } else {
+#endif
+            // CPU 模式才禁用 memory arena（EP 不兼容这两个选项）
+            session_options.DisableCpuMemArena();
+            session_options.DisableMemPattern();
+#ifdef USE_SPACEMIT_EP
+        }
+#endif
 
         session_ = std::make_unique<Ort::Session>(*env_, config_.model_path.c_str(), session_options);
 

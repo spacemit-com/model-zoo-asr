@@ -281,7 +281,9 @@ PYBIND11_MODULE(_spacemit_asr, m) {
             "Set language")
         .def("without_vad", &asr::ASRConfig::withoutVAD, "Disable VAD")
         .def("with_word_timestamps", &asr::ASRConfig::withWordTimestamps,
-            "Enable word timestamps");
+            "Enable word timestamps")
+        .def_readwrite("extra_params", &asr::ASRConfig::extra_params,
+            "Extra backend-specific parameters (e.g. provider)");
 
     // -------------------------------------------------------------------------
     // ASR Engine

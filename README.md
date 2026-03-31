@@ -227,11 +227,16 @@ target_include_directories(your_target PRIVATE ${ASR_SOURCE_DIR}/include)
 
 ## 8. 附录：性能指标
 
-以下数据基于 K3 平台（2 线程推理）实测，为阶段性信息，持续优化中，请以最新文档为准。
+以下数据基于 K3 平台（SpaceMIT EP，2 线程推理）实测，为阶段性信息，持续优化中，请以最新文档为准。
 
-| 模型 | 量化 | 音频时长 | 处理时间 | RTF |
-|------|------|----------|----------|-----|
-| SenseVoice (model_quant_optimized.onnx) | INT8 | 41s | 14.3s | 0.35 |
+模型：SenseVoice (INT8)
+
+| 测试文件 | 音频时长 | 处理时间 | RTF |
+|----------|----------|----------|-----|
+| 001_zh_daily_weather.wav | 1619 ms | 267 ms | 0.165 |
+| 002_en_daily_weather.wav | 1802 ms | 256 ms | 0.142 |
+| 003_zh_en_search.wav | 2324 ms | 335 ms | 0.144 |
+| **合计** | **5745 ms** | **858 ms** | **0.149** |
 
 测试音频文件可从 [archive.spacemit.com](https://archive.spacemit.com/spacemit-ai/model_zoo/assets/audio) 下载：
 ```bash

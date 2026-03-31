@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ASR 流式识别示例 - 边录边识别 (VAD + flush)
+ASR 流式识别示例 - 边录边识别 (定时 flush)
 
 使用 multiprocessing 避免 GIL 导致的 overrun 问题。
 音频采集在独立进程中运行，通过 multiprocessing.Queue 传递数据。
@@ -18,7 +18,7 @@ Usage:
     python asr_stream_demo.py -l              # 列出音频设备
     python asr_stream_demo.py -d 0            # 使用设备 0
     python asr_stream_demo.py --duration 10   # 录制 10 秒
-    python asr_stream_demo.py --vad-threshold 100000  # 调整 VAD 阈值
+    python asr_stream_demo.py --flush 5       # 每 5 秒 flush
 """
 
 import sys
@@ -63,63 +63,6 @@ def stereo_to_mono(audio: np.ndarray, channels: int) -> np.ndarray:
     # 假设交错格式: L R L R ...
     audio = audio.reshape(-1, channels)
     return audio.mean(axis=1).astype(np.float32)
-
-
-# =============================================================================
-# 简单能量 VAD
-# =============================================================================
-
-class SimpleVAD:
-    """
-    简单的能量 VAD (Voice Activity Detection)
-
-    检测静音来判断句子边界。当连续静音帧数超过阈值时，认为句子结束。
-    """
-
-    def __init__(self, threshold: float = 100000.0, min_silence_frames: int = 8,
-                 min_speech_frames: int = 3):
-        """
-        Args:
-            threshold: 静音能量阈值 (int16 平方均值)
-            min_silence_frames: 最小静音帧数，超过则认为句子结束
-            min_speech_frames: 最小语音帧数，需要先说话才能触发句子结束
-        """
-        self.threshold = threshold
-        self.min_silence_frames = min_silence_frames
-        self.min_speech_frames = min_speech_frames
-        self.silence_frames = 0
-        self.speech_frames = 0
-        self.has_speech = False
-
-    def feed(self, audio: np.ndarray) -> None:
-        """输入音频帧 (int16 或 float32)"""
-        if audio.dtype == np.float32:
-            # 转换为 int16 范围计算能量
-            audio_int = (audio * 32768).astype(np.float32)
-        else:
-            audio_int = audio.astype(np.float32)
-
-        energy = np.mean(audio_int ** 2)
-
-        if energy >= self.threshold:
-            # 有语音
-            self.speech_frames += 1
-            self.silence_frames = 0
-            if self.speech_frames >= self.min_speech_frames:
-                self.has_speech = True
-        else:
-            # 静音
-            self.silence_frames += 1
-
-    def is_sentence_end(self) -> bool:
-        """检测是否句子结束"""
-        return self.has_speech and self.silence_frames >= self.min_silence_frames
-
-    def reset(self) -> None:
-        """重置状态"""
-        self.silence_frames = 0
-        self.speech_frames = 0
-        self.has_speech = False
 
 
 # =============================================================================
@@ -177,7 +120,7 @@ def list_devices():
 # =============================================================================
 
 def audio_capture_process(audio_queue: Queue, stop_event, device: int,
-                          duration: float, config_queue: Queue):
+                          duration: float, config_queue: Queue, channels: int = 1):
     """
     独立进程中运行音频采集
 
@@ -199,7 +142,7 @@ def audio_capture_process(audio_queue: Queue, stop_event, device: int,
         # 初始化音频
         space_audio.init(
             sample_rate=16000,
-            channels=1,
+            channels=channels,
             chunk_size=3200,  # 100ms @ 16kHz
             capture_device=device,
         )
@@ -264,7 +207,7 @@ def run_streaming_recognition(args):
     # 启动音频采集进程
     capture_proc = Process(
         target=audio_capture_process,
-        args=(audio_queue, stop_event, args.device, args.duration, config_queue)
+        args=(audio_queue, stop_event, args.device, args.duration, config_queue, args.channels)
     )
     capture_proc.start()
 
@@ -306,27 +249,33 @@ def run_streaming_recognition(args):
     asr_config = spacemit_asr.Config(args.model_dir)
     asr_config.language = lang_map[args.language]
     asr_config.punctuation_enabled = True
+    asr_config.provider = args.provider
 
-    print(f"ASR 配置: 语言={args.language}")
-    print(f"VAD 阈值: {args.vad_threshold}")
+    print(f"ASR 配置: 语言={args.language}, provider={args.provider}")
+    print(f"Flush 间隔: {args.flush}秒")
     print(f"录制时长: {args.duration}秒")
     print("\n使用 multiprocessing 避免 GIL 导致的 overrun")
-    print("说话后停顿会自动触发识别 (flush)")
     print("按 Ctrl+C 退出\n")
 
     # 创建回调
     callback = StreamingCallback()
 
-    # VAD
-    vad = SimpleVAD(threshold=args.vad_threshold)
     sentence_count = 0
     frame_count = 0
 
     with spacemit_asr.Engine(asr_config) as engine:
         try:
+            print(">>> Warmup...")
+            silence = np.zeros(8000, dtype=np.float32)
+            t0 = time.monotonic()
+            engine.recognize(silence)
+            warmup_ms = (time.monotonic() - t0) * 1000
+            print(f"Warmup done: {warmup_ms:.0f} ms\n")
+
             engine.start(callback=callback)
 
             print("开始处理音频...")
+            last_flush_time = time.monotonic()
 
             while True:
                 try:
@@ -351,13 +300,13 @@ def run_streaming_recognition(args):
                     audio_int16 = (audio * 32767).clip(-32768, 32767).astype(np.int16)
                     engine.send_audio_frame(audio_int16.tobytes())
 
-                    # VAD 检测
-                    vad.feed(audio)
-                    if vad.is_sentence_end():
+                    # 定时 flush
+                    now = time.monotonic()
+                    if now - last_flush_time >= args.flush:
                         sentence_count += 1
-                        print(f"[句子 {sentence_count}] flush...")
+                        print(f"[句子 {sentence_count}] 定时 flush ({args.flush}s)...")
                         engine.flush()
-                        vad.reset()
+                        last_flush_time = now
 
                     # 定期显示进度
                     if frame_count % 50 == 0:
@@ -370,10 +319,9 @@ def run_streaming_recognition(args):
                     continue
 
             # 处理剩余
-            if vad.has_speech:
-                sentence_count += 1
-                print(f"[句子 {sentence_count}] flush (剩余)...")
-                engine.flush()
+            sentence_count += 1
+            print(f"[句子 {sentence_count}] flush (剩余)...")
+            engine.flush()
 
             engine.stop()
 
@@ -397,7 +345,7 @@ def run_streaming_recognition(args):
 
 def main():
     parser = argparse.ArgumentParser(
-        description='ASR 流式识别 (VAD + flush 边录边识别, multiprocessing 版本)',
+        description='ASR 流式识别 (定时 flush 边录边识别, multiprocessing 版本)',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
@@ -406,13 +354,16 @@ def main():
   python asr_stream_demo.py -d 0               # 使用设备 0
   python asr_stream_demo.py --duration 30      # 录制 30 秒
   python asr_stream_demo.py --language en      # 英文识别
-  python asr_stream_demo.py --vad-threshold 50000  # 降低 VAD 阈值 (更灵敏)
+  python asr_stream_demo.py -f 5               # 每 5 秒 flush
         """
     )
     parser.add_argument('-l', '--list', action='store_true',
                         help='列出音频设备')
     parser.add_argument('-d', '--device', type=int, default=-1,
                         help='音频设备索引 (默认: -1 自动选择)')
+    parser.add_argument('--channels', '-c', type=int, default=1,
+                        choices=[1, 2],
+                        help='采集声道数 (默认: 1)')
     parser.add_argument('--duration', type=float, default=30.0,
                         help='录音时长秒数 (默认: 30.0)')
     parser.add_argument('--model-dir', '-m', default='~/.cache/models/asr/sensevoice',
@@ -420,8 +371,11 @@ def main():
     parser.add_argument('--language', default='zh',
                         choices=['zh', 'en', 'ja', 'ko', 'yue', 'auto'],
                         help='识别语言 (默认: zh)')
-    parser.add_argument('--vad-threshold', type=float, default=100000.0,
-                        help='VAD 能量阈值，越低越灵敏 (默认: 100000.0)')
+    parser.add_argument('--flush', '-f', type=float, default=3.0,
+                        help='Flush 间隔秒数 (默认: 3.0)')
+    parser.add_argument('--provider', '-p', default='spacemit',
+                        choices=['cpu', 'spacemit'],
+                        help='执行提供程序 (默认: spacemit)')
 
     args = parser.parse_args()
 

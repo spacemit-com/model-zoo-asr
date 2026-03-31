@@ -99,8 +99,13 @@ ErrorInfo SenseVoiceBackend::initializeASRModel() {
         model_config.decoder_path = expandPath(config_.decoder_path);
         model_config.batch_size = 1;
         model_config.sample_rate = config_.sample_rate;
+        model_config.num_threads = config_.num_threads;
         model_config.language = languageToString(config_.language);
         model_config.use_itn = config_.itn_enabled;
+        auto it = config_.extra_params.find("provider");
+        if (it != config_.extra_params.end()) {
+            model_config.provider = it->second;
+        }
 
         model_ = std::make_unique<sensevoice::SenseVoiceModel>(model_config);
 

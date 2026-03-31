@@ -167,6 +167,7 @@ void printUsage(const char* program) {
     std::cout << "  -t, --time <N>     录音时长秒数 (默认 30)" << std::endl;
     std::cout << "  -f, --flush <N>    Flush 间隔秒数 (默认 3)" << std::endl;
     std::cout << "  -l, --list         列出可用音频设备" << std::endl;
+    std::cout << "  -p, --provider <EP> EP: cpu | spacemit (默认 spacemit)" << std::endl;
     std::cout << "  -h, --help         显示帮助" << std::endl;
     std::cout << std::endl;
     std::cout << "Examples:" << std::endl;
@@ -302,6 +303,7 @@ int main(int argc, char* argv[]) {
     int device_index = -1;
     int total_seconds = 30;
     int flush_interval = 3;  // 每 3 秒 flush 一次
+    std::string provider = "spacemit";
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -317,6 +319,8 @@ int main(int argc, char* argv[]) {
             device_index = std::stoi(argv[++i]);
         } else if ((arg == "-t" || arg == "--time") && i + 1 < argc) {
             total_seconds = std::stoi(argv[++i]);
+        } else if ((arg == "-p" || arg == "--provider") && i + 1 < argc) {
+            provider = argv[++i];
         }
     }
 
@@ -331,6 +335,7 @@ int main(int argc, char* argv[]) {
     std::cout << "设备索引: " << (device_index == -1 ? "默认" : std::to_string(device_index)) << std::endl;
     std::cout << "总时长: " << total_seconds << " 秒" << std::endl;
     std::cout << "Flush 间隔: " << flush_interval << " 秒" << std::endl;
+    std::cout << "Provider: " << provider << std::endl;
     std::cout << std::endl;
 
     // 列出设备
@@ -342,6 +347,7 @@ int main(int argc, char* argv[]) {
     SpacemiT::AsrConfig config = SpacemiT::AsrConfig::Preset("sensevoice");  // 使用默认模型路径
     config.language = "zh";
     config.punctuation = true;
+    config.provider = provider;
 
     auto asrEngine = std::make_shared<SpacemiT::AsrEngine>(config);
 
@@ -391,6 +397,18 @@ int main(int argc, char* argv[]) {
     std::cout << "========================================" << std::endl;
 
     // 启动流式会话 (只启动一次)
+    std::cout << ">>> Warmup..." << std::endl;
+    {
+        std::vector<float> silence(8000, 0.0f);
+        auto t0 = std::chrono::steady_clock::now();
+        asrEngine->Recognize(silence, 16000);
+        auto t1 = std::chrono::steady_clock::now();
+        double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+        std::cout << "Warmup done: " << std::fixed << std::setprecision(0)
+            << ms << " ms" << std::endl;
+    }
+    std::cout << std::endl;
+
     asrEngine->Start();
 
     // 主循环：每 flush_interval 秒 Flush 一次

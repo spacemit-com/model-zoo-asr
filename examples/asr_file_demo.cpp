@@ -7,7 +7,7 @@
  * SpaceAudioSDK 静态文件识别示例
  *
  * Usage:
- *   ./asr_file_demo <audio1.wav> [audio2.wav ...] [--model-dir DIR] [--rounds N]
+ *   ./asr_file_demo <audio1.wav> [audio2.wav ...] [--model-dir DIR] [--rounds N] [--provider EP]
  *
  * Examples:
  *   ./asr_file_demo ~/test.wav
@@ -15,6 +15,7 @@
  *   ./asr_file_demo a.wav b.wav --model-dir ~/.cache/models/asr/sensevoice
  */
 
+#include <chrono>
 #include <cstdlib>
 #include <iomanip>
 #include <iostream>
@@ -34,13 +35,16 @@ struct FileResult {
 };
 
 void printUsage(const char* program) {
-    std::cout << "Usage: " << program << " <audio1.wav> [audio2.wav ...] [--model-dir DIR] [--rounds N]" << std::endl;
+    std::cout << "Usage: " << program
+        << " <audio1.wav> [audio2.wav ...] [--model-dir DIR] [--rounds N] [--provider EP]"
+        << std::endl;
     std::cout << std::endl;
     std::cout << "Arguments:" << std::endl;
     std::cout << "  audio files   One or more WAV audio files" << std::endl;
     std::cout << "  --model-dir   Path to SenseVoice model directory" << std::endl;
     std::cout << "                Default: ~/.cache/models/asr/sensevoice" << std::endl;
     std::cout << "  --rounds N    Run N rounds of recognition (default: 1)" << std::endl;
+    std::cout << "  --provider    EP: cpu | spacemit (default: spacemit)" << std::endl;
     std::cout << std::endl;
     std::cout << "Examples:" << std::endl;
     std::cout << "  " << program << " ~/test.wav" << std::endl;
@@ -65,6 +69,7 @@ int main(int argc, char* argv[]) {
     // Parse args: collect audio files and optional --model-dir
     std::vector<std::string> audio_files;
     std::string model_dir = "~/.cache/models/asr/sensevoice";
+    std::string provider = "spacemit";
     int rounds = 1;
 
     for (int i = 1; i < argc; i++) {
@@ -73,6 +78,8 @@ int main(int argc, char* argv[]) {
         } else if (std::string(argv[i]) == "--rounds" && i + 1 < argc) {
             rounds = std::atoi(argv[++i]);
             if (rounds < 1) rounds = 1;
+        } else if (std::string(argv[i]) == "--provider" && i + 1 < argc) {
+            provider = argv[++i];
         } else {
             audio_files.push_back(expandHome(argv[i]));
         }
@@ -95,6 +102,7 @@ int main(int argc, char* argv[]) {
     config.model_dir = model_dir;
     config.language = "zh";
     config.punctuation = true;
+    config.provider = provider;
 
     auto engine = std::make_shared<SpacemiT::AsrEngine>(config);
     if (!engine->IsInitialized()) {
@@ -107,8 +115,22 @@ int main(int argc, char* argv[]) {
     std::cout << "语言: " << cfg.language << std::endl;
     std::cout << "标点: " << (cfg.punctuation ? "启用" : "禁用") << std::endl;
     std::cout << "采样率: " << cfg.sample_rate << " Hz" << std::endl;
+    std::cout << "Provider: " << provider << std::endl;
     std::cout << "文件数: " << audio_files.size() << std::endl;
     std::cout << "轮次: " << rounds << std::endl;
+    std::cout << std::endl;
+
+    // --- Warmup: 跑一次哑推理，加热 EP JIT 缓存 ---
+    std::cout << ">>> Warmup (excluded from benchmark)..." << std::endl;
+    {
+        std::vector<float> silence(8000, 0.0f);  // 0.5s 静音 @16kHz
+        auto t0 = std::chrono::steady_clock::now();
+        engine->Recognize(silence, 16000);
+        auto t1 = std::chrono::steady_clock::now();
+        double warmup_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+        std::cout << "Warmup done: " << std::fixed << std::setprecision(0)
+            << warmup_ms << " ms" << std::endl;
+    }
     std::cout << std::endl;
 
     // Recognize each file, multiple rounds

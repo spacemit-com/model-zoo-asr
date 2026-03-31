@@ -33,6 +33,7 @@ struct AsrConfig {
     std::string language = "zh";
     bool punctuation = true;
     int sample_rate = 16000;
+    std::string provider = "spacemit";  // "cpu" or "spacemit"
 
     static AsrConfig Preset(const std::string& name);
     static std::vector<std::string> AvailablePresets();

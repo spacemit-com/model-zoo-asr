@@ -405,7 +405,7 @@ int main(int argc, char* argv[]) {
         auto t1 = std::chrono::steady_clock::now();
         double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
         std::cout << "Warmup done: " << std::fixed << std::setprecision(0)
-                  << ms << " ms" << std::endl;
+            << ms << " ms" << std::endl;
     }
     std::cout << std::endl;
 

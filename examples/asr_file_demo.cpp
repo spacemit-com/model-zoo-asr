@@ -35,7 +35,9 @@ struct FileResult {
 };
 
 void printUsage(const char* program) {
-    std::cout << "Usage: " << program << " <audio1.wav> [audio2.wav ...] [--model-dir DIR] [--rounds N] [--provider EP]" << std::endl;
+    std::cout << "Usage: " << program
+        << " <audio1.wav> [audio2.wav ...] [--model-dir DIR] [--rounds N] [--provider EP]"
+        << std::endl;
     std::cout << std::endl;
     std::cout << "Arguments:" << std::endl;
     std::cout << "  audio files   One or more WAV audio files" << std::endl;
@@ -127,7 +129,7 @@ int main(int argc, char* argv[]) {
         auto t1 = std::chrono::steady_clock::now();
         double warmup_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
         std::cout << "Warmup done: " << std::fixed << std::setprecision(0)
-                  << warmup_ms << " ms" << std::endl;
+            << warmup_ms << " ms" << std::endl;
     }
     std::cout << std::endl;
 

@@ -36,19 +36,24 @@ struct FileResult {
 
 void printUsage(const char* program) {
     std::cout << "Usage: " << program
-        << " <audio1.wav> [audio2.wav ...] [--model-dir DIR] [--rounds N] [--provider EP]"
+        << " <audio1.wav> [audio2.wav ...] [OPTIONS]"
         << std::endl;
     std::cout << std::endl;
     std::cout << "Arguments:" << std::endl;
     std::cout << "  audio files   One or more WAV audio files" << std::endl;
+    std::cout << "  --engine      Engine: sensevoice | qwen3-asr (default: sensevoice)" << std::endl;
     std::cout << "  --model-dir   Path to SenseVoice model directory" << std::endl;
     std::cout << "                Default: ~/.cache/models/asr/sensevoice" << std::endl;
     std::cout << "  --rounds N    Run N rounds of recognition (default: 1)" << std::endl;
     std::cout << "  --provider    EP: cpu | spacemit (default: spacemit)" << std::endl;
+    std::cout << "  --endpoint    Qwen3-ASR llama-server URL" << std::endl;
+    std::cout << "                Default: http://127.0.0.1:8063/v1/chat/completions" << std::endl;
+    std::cout << "  --model       Qwen3-ASR model tag (default: qwen3-asr)" << std::endl;
+    std::cout << "  --timeout     Qwen3-ASR timeout in seconds (default: 60)" << std::endl;
     std::cout << std::endl;
     std::cout << "Examples:" << std::endl;
     std::cout << "  " << program << " ~/test.wav" << std::endl;
-    std::cout << "  " << program << " a.wav b.wav c.wav" << std::endl;
+    std::cout << "  " << program << " a.wav b.wav --engine qwen3-asr --endpoint http://10.0.90.72:8063/v1/chat/completions" << std::endl;
     std::cout << "  " << program << " a.wav b.wav --model-dir /path/to/models" << std::endl;
 }
 
@@ -66,20 +71,33 @@ int main(int argc, char* argv[]) {
         return (argc < 2) ? 1 : 0;
     }
 
-    // Parse args: collect audio files and optional --model-dir
+    // Parse args
     std::vector<std::string> audio_files;
+    std::string engine_name = "sensevoice";
     std::string model_dir = "~/.cache/models/asr/sensevoice";
     std::string provider = "spacemit";
+    std::string endpoint = "http://127.0.0.1:8063/v1/chat/completions";
+    std::string model_tag = "qwen3-asr";
+    int timeout = 60;
     int rounds = 1;
 
     for (int i = 1; i < argc; i++) {
-        if (std::string(argv[i]) == "--model-dir" && i + 1 < argc) {
+        std::string arg = argv[i];
+        if (arg == "--engine" && i + 1 < argc) {
+            engine_name = argv[++i];
+        } else if (arg == "--model-dir" && i + 1 < argc) {
             model_dir = argv[++i];
-        } else if (std::string(argv[i]) == "--rounds" && i + 1 < argc) {
+        } else if (arg == "--rounds" && i + 1 < argc) {
             rounds = std::atoi(argv[++i]);
             if (rounds < 1) rounds = 1;
-        } else if (std::string(argv[i]) == "--provider" && i + 1 < argc) {
+        } else if (arg == "--provider" && i + 1 < argc) {
             provider = argv[++i];
+        } else if (arg == "--endpoint" && i + 1 < argc) {
+            endpoint = argv[++i];
+        } else if (arg == "--model" && i + 1 < argc) {
+            model_tag = argv[++i];
+        } else if (arg == "--timeout" && i + 1 < argc) {
+            timeout = std::atoi(argv[++i]);
         } else {
             audio_files.push_back(expandHome(argv[i]));
         }
@@ -97,12 +115,19 @@ int main(int argc, char* argv[]) {
     std::cout << "========================================" << std::endl;
     std::cout << std::endl;
 
-    std::cout << ">>> 创建 ASR 引擎..." << std::endl;
-    SpacemiT::AsrConfig config = SpacemiT::AsrConfig::Preset("sensevoice");
-    config.model_dir = model_dir;
+    std::cout << ">>> 创建 ASR 引擎 (" << engine_name << ")..." << std::endl;
+    SpacemiT::AsrConfig config = SpacemiT::AsrConfig::Preset(engine_name);
     config.language = "zh";
     config.punctuation = true;
-    config.provider = provider;
+
+    if (engine_name == "qwen3-asr") {
+        config.endpoint = endpoint;
+        config.model = model_tag;
+        config.timeout = timeout;
+    } else {
+        config.model_dir = model_dir;
+        config.provider = provider;
+    }
 
     auto engine = std::make_shared<SpacemiT::AsrEngine>(config);
     if (!engine->IsInitialized()) {
@@ -115,23 +140,31 @@ int main(int argc, char* argv[]) {
     std::cout << "语言: " << cfg.language << std::endl;
     std::cout << "标点: " << (cfg.punctuation ? "启用" : "禁用") << std::endl;
     std::cout << "采样率: " << cfg.sample_rate << " Hz" << std::endl;
-    std::cout << "Provider: " << provider << std::endl;
+    if (engine_name == "qwen3-asr") {
+        std::cout << "Endpoint: " << cfg.endpoint << std::endl;
+        std::cout << "Model: " << cfg.model << std::endl;
+        std::cout << "Timeout: " << cfg.timeout << "s" << std::endl;
+    } else {
+        std::cout << "Provider: " << provider << std::endl;
+    }
     std::cout << "文件数: " << audio_files.size() << std::endl;
     std::cout << "轮次: " << rounds << std::endl;
     std::cout << std::endl;
 
     // --- Warmup: 跑一次哑推理，加热 EP JIT 缓存 ---
-    std::cout << ">>> Warmup (excluded from benchmark)..." << std::endl;
-    {
-        std::vector<float> silence(8000, 0.0f);  // 0.5s 静音 @16kHz
-        auto t0 = std::chrono::steady_clock::now();
-        engine->Recognize(silence, 16000);
-        auto t1 = std::chrono::steady_clock::now();
-        double warmup_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
-        std::cout << "Warmup done: " << std::fixed << std::setprecision(0)
-            << warmup_ms << " ms" << std::endl;
+    if (engine_name != "qwen3-asr") {
+        std::cout << ">>> Warmup (excluded from benchmark)..." << std::endl;
+        {
+            std::vector<float> silence(8000, 0.0f);  // 0.5s 静音 @16kHz
+            auto t0 = std::chrono::steady_clock::now();
+            engine->Recognize(silence, 16000);
+            auto t1 = std::chrono::steady_clock::now();
+            double warmup_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+            std::cout << "Warmup done: " << std::fixed << std::setprecision(0)
+                << warmup_ms << " ms" << std::endl;
+        }
+        std::cout << std::endl;
     }
-    std::cout << std::endl;
 
     // Recognize each file, multiple rounds
     std::vector<FileResult> results;

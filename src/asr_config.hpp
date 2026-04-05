@@ -190,6 +190,8 @@ public:
             }
         }
 
+        // Qwen3-ASR is HTTP-based, no local model path needed
+
         if (config.backend == BackendType::FUNASR) {
             // 云端后端需要API配置
             if (config.api_key.empty()) {

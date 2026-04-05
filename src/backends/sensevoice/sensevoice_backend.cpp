@@ -4,6 +4,7 @@
  */
 
 #include "backends/sensevoice/sensevoice_backend.hpp"
+#include "backends/qwen3_asr/qwen3_asr_backend.hpp"
 
 #include <sndfile.h>
 
@@ -511,6 +512,9 @@ std::unique_ptr<IASRBackend> ASRBackendFactory::create(BackendType type) {
             std::cerr << "[ASRBackendFactory] Paraformer backend not yet implemented" << std::endl;
             return nullptr;
 
+        case BackendType::QWEN3_ASR:
+            return std::make_unique<Qwen3ASRBackend>();
+
         default:
             std::cerr << "[ASRBackendFactory] Unknown backend type" << std::endl;
             return nullptr;
@@ -520,7 +524,8 @@ std::unique_ptr<IASRBackend> ASRBackendFactory::create(BackendType type) {
 bool ASRBackendFactory::isAvailable(BackendType type) {
     switch (type) {
         case BackendType::SENSEVOICE:
-            return true;  // Always available (built-in)
+        case BackendType::QWEN3_ASR:
+            return true;
         default:
             return false;
     }
@@ -529,7 +534,7 @@ bool ASRBackendFactory::isAvailable(BackendType type) {
 std::vector<BackendType> ASRBackendFactory::getAvailableBackends() {
     std::vector<BackendType> backends;
     backends.push_back(BackendType::SENSEVOICE);
-    // Add more as they become available
+    backends.push_back(BackendType::QWEN3_ASR);
     return backends;
 }
 

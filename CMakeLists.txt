@@ -125,6 +125,7 @@ target_link_directories(sensevoice PRIVATE ${CURL_LIBRARY_DIRS})
 set(STT_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/asr_engine.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/sensevoice/sensevoice_backend.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/qwen3_asr/qwen3_asr_backend.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/asr_adapter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/asr_presets.cpp
 )
@@ -134,6 +135,7 @@ add_library(stt STATIC ${STT_SOURCES})
 target_include_directories(stt PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CURL_INCLUDE_DIRS}
 )
 
 # Conditionally add resampler include
@@ -145,8 +147,11 @@ endif()
 target_link_libraries(stt
     PUBLIC sensevoice
     PUBLIC ${SNDFILE_LIBRARIES}
+    PRIVATE ${CURL_LIBRARIES}
     PRIVATE pthread
 )
+
+target_link_directories(stt PRIVATE ${CURL_LIBRARY_DIRS})
 
 target_link_directories(stt PUBLIC ${SNDFILE_LIBRARY_DIRS})
 

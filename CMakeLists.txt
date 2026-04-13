@@ -29,6 +29,7 @@ endif()
 
 option(BUILD_STREAM_DEMO "Build stream demo and Python bindings (requires audio component)" ${_IN_SDK_BUILD})
 option(BUILD_PYTHON_BINDINGS "Build Python bindings (requires BUILD_STREAM_DEMO=ON)" ON)
+option(ASR_MODEL_FETCH_OFF "Disable automatic model downloading at configure time" OFF)
 
 # -------------------------------------------------------
 # Find Dependencies
@@ -52,7 +53,7 @@ find_library(ONNXRUNTIME_LIB
     /opt/homebrew/lib
 )
 
-option(USE_SPACEMIT_EP "Enable SpaceMIT Execution Provider for ASR" ${_IN_SDK_BUILD})
+option(USE_SPACEMIT_EP "Enable SpaceMIT Execution Provider for ASR" ON)
 
 # libsndfile
 pkg_check_modules(SNDFILE REQUIRED sndfile)
@@ -70,6 +71,28 @@ endif()
 
 # libsamplerate (optional)
 pkg_check_modules(SAMPLERATE samplerate)
+
+# kaldi-native-fbank (for Zipformer feature extraction)
+include(FetchContent)
+set(KALDI_NATIVE_FBANK_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(KALDI_NATIVE_FBANK_BUILD_PYTHON OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(
+    kaldi_native_fbank
+    GIT_REPOSITORY https://github.com/csukuangfj/kaldi-native-fbank
+    GIT_TAG master
+)
+FetchContent_MakeAvailable(kaldi_native_fbank)
+set(KALDI_FBANK_INCLUDE_DIRS
+    ${kaldi_native_fbank_SOURCE_DIR}
+    ${kaldi_native_fbank_SOURCE_DIR}/kaldi-native-fbank/csrc
+)
+
+# -------------------------------------------------------
+# Fetch ASR Models
+# -------------------------------------------------------
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/FetchSenseVoiceModel.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/FetchZipformerModel.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/FetchQwen3AsrModel.cmake)
 
 # -------------------------------------------------------
 # Audio Component (optional, for stream demo)
@@ -96,7 +119,6 @@ set(SENSEVOICE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/sensevoice/sensevoice_model.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/sensevoice/feature_extractor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/sensevoice/tokenizer.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/sensevoice/model_loader.cpp
 )
 
 add_library(sensevoice STATIC ${SENSEVOICE_SOURCES})
@@ -112,20 +134,45 @@ target_include_directories(sensevoice PUBLIC
 target_link_libraries(sensevoice
     PUBLIC ${ONNXRUNTIME_LIB}
     PUBLIC ${FFTW3_LIBRARIES}
-    PRIVATE ${CURL_LIBRARIES}
     PRIVATE pthread
     PRIVATE m
 )
 
-target_link_directories(sensevoice PRIVATE ${CURL_LIBRARY_DIRS})
+# -------------------------------------------------------
+# Zipformer Backend Library
+# -------------------------------------------------------
+set(ZIPFORMER_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/zipformer/zipformer_ctc_model.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/zipformer/zipformer_feature_extractor.cpp
+)
+
+add_library(zipformer STATIC ${ZIPFORMER_SOURCES})
+
+target_include_directories(zipformer PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${ONNXRUNTIME_INCLUDE_DIR}
+    ${KALDI_FBANK_INCLUDE_DIRS}
+)
+
+target_link_libraries(zipformer
+    PUBLIC ${ONNXRUNTIME_LIB}
+    PUBLIC kaldi-native-fbank-core
+)
+
+set_target_properties(zipformer PROPERTIES
+    ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
+)
 
 # -------------------------------------------------------
 # STT Framework Library
 # -------------------------------------------------------
 set(STT_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/model_downloader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/asr_engine.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/sensevoice/sensevoice_backend.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/qwen3_asr/qwen3_asr_backend.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/zipformer/zipformer_backend.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/asr_adapter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/asr_presets.cpp
 )
@@ -146,6 +193,7 @@ endif()
 
 target_link_libraries(stt
     PUBLIC sensevoice
+    PUBLIC zipformer
     PUBLIC ${SNDFILE_LIBRARIES}
     PRIVATE ${CURL_LIBRARIES}
     PRIVATE pthread
@@ -168,7 +216,7 @@ message(STATUS "STT Framework library enabled")
 # -------------------------------------------------------
 # Install rules
 # -------------------------------------------------------
-install(TARGETS stt sensevoice
+install(TARGETS stt sensevoice zipformer
     ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib
 )
@@ -213,6 +261,9 @@ if(USE_SPACEMIT_EP)
         target_compile_definitions(sensevoice PRIVATE USE_SPACEMIT_EP)
         target_include_directories(sensevoice PRIVATE ${SPACEMIT_ORT_INCLUDE_DIR})
         target_link_libraries(sensevoice PUBLIC ${SPACEMIT_EP_LIB})
+        target_compile_definitions(zipformer PRIVATE USE_SPACEMIT_EP)
+        target_include_directories(zipformer PRIVATE ${SPACEMIT_ORT_INCLUDE_DIR})
+        target_link_libraries(zipformer PUBLIC ${SPACEMIT_EP_LIB})
         target_compile_definitions(asr_file_demo PRIVATE USE_SPACEMIT_EP)
         target_include_directories(asr_file_demo PRIVATE ${SPACEMIT_ORT_INCLUDE_DIR})
         message(STATUS "SpaceMIT EP enabled: ${SPACEMIT_ORT_INCLUDE_DIR}, lib: ${SPACEMIT_EP_LIB}")

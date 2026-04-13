@@ -5,6 +5,7 @@
 
 #include "backends/sensevoice/sensevoice_backend.hpp"
 #include "backends/qwen3_asr/qwen3_asr_backend.hpp"
+#include "backends/zipformer/zipformer_backend.hpp"
 
 #include <sndfile.h>
 
@@ -17,7 +18,7 @@
 #include <vector>
 
 #include "backends/sensevoice/sensevoice_model.hpp"
-#include "backends/sensevoice/model_loader.hpp"
+#include "model_downloader.hpp"
 
 namespace asr {
 
@@ -57,10 +58,7 @@ ErrorInfo SenseVoiceBackend::initialize(const ASRConfig& config) {
     config_ = config;
 
     // Check and download models if needed
-    sensevoice::ModelLoader::Config loader_config;
-
-    // Extract directory from model_path
-    std::string model_dir;
+    std::string model_dir = "~/.cache/models/asr/sensevoice";
     if (!config_.model_path.empty()) {
         size_t last_slash = config_.model_path.rfind('/');
         if (last_slash != std::string::npos) {
@@ -68,12 +66,14 @@ ErrorInfo SenseVoiceBackend::initialize(const ASRConfig& config) {
         }
     }
 
-    if (!model_dir.empty()) {
-        loader_config.model_dir = model_dir;
-    }
-
-    sensevoice::ModelLoader loader(loader_config);
-    if (!loader.ensureModelsExist()) {
+    ModelDownloader downloader({
+        .model_dir = model_dir,
+        .url = "https://archive.spacemit.com/spacemit-ai/model_zoo/asr/sensevoice.tar.gz",
+        .archive_name = "sensevoice.tar.gz",
+        .archive_subdir = "sensevoice",
+        .required_files = {"model_quant_optimized.onnx", "tokens.txt", "am.mvn"},
+    });
+    if (!downloader.ensure()) {
         std::cout << "[SenseVoiceBackend] Models not found, will attempt to use provided paths"
                 << std::endl;
     }
@@ -515,6 +515,9 @@ std::unique_ptr<IASRBackend> ASRBackendFactory::create(BackendType type) {
         case BackendType::QWEN3_ASR:
             return std::make_unique<Qwen3ASRBackend>();
 
+        case BackendType::ZIPFORMER:
+            return std::make_unique<ZipformerBackend>();
+
         default:
             std::cerr << "[ASRBackendFactory] Unknown backend type" << std::endl;
             return nullptr;
@@ -525,6 +528,7 @@ bool ASRBackendFactory::isAvailable(BackendType type) {
     switch (type) {
         case BackendType::SENSEVOICE:
         case BackendType::QWEN3_ASR:
+        case BackendType::ZIPFORMER:
             return true;
         default:
             return false;
@@ -535,6 +539,7 @@ std::vector<BackendType> ASRBackendFactory::getAvailableBackends() {
     std::vector<BackendType> backends;
     backends.push_back(BackendType::SENSEVOICE);
     backends.push_back(BackendType::QWEN3_ASR);
+    backends.push_back(BackendType::ZIPFORMER);
     return backends;
 }
 

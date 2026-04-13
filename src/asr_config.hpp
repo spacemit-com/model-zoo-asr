@@ -130,6 +130,16 @@ struct ASRConfig {
         return config;
     }
 
+    /// @brief 创建Zipformer CTC本地识别配置
+    static ASRConfig zipformer(const std::string& model_dir) {
+        ASRConfig config;
+        config.backend = BackendType::ZIPFORMER;
+        config.model_path = model_dir + "/ctc-epoch-20-avg-1-chunk-16-left-128.q.onnx";
+        config.vocab_path = model_dir + "/tokens.txt";
+        config.use_quantized = true;
+        return config;
+    }
+
     /// @brief 创建FunASR云端识别配置
     static ASRConfig funasrCloud(const std::string& api_key, const std::string& model_id = "fun-asr-realtime") {
         ASRConfig config;
@@ -182,7 +192,8 @@ public:
         // 检查后端类型
         if (config.backend == BackendType::SENSEVOICE ||
             config.backend == BackendType::WHISPER ||
-            config.backend == BackendType::PARAFORMER) {
+            config.backend == BackendType::PARAFORMER ||
+            config.backend == BackendType::ZIPFORMER) {
             // 本地后端需要模型路径
             if (config.model_path.empty()) {
                 return ErrorInfo::error(ErrorCode::INVALID_CONFIG,

@@ -395,6 +395,10 @@ AsrEngine::AsrEngine(const AsrConfig& config)
         internal_config.extra_params["endpoint"] = config.endpoint;
         internal_config.extra_params["model"] = config.model;
         internal_config.extra_params["timeout"] = std::to_string(config.timeout);
+    } else if (config.engine == "zipformer") {
+        std::string dir =
+            config.model_dir.empty() ? "~/.cache/models/asr/zipformer" : config.model_dir;
+        internal_config = asr::ASRConfig::zipformer(dir);
     } else if (config.engine == "sensevoice" || config.engine.empty()) {
         std::string dir =
             config.model_dir.empty() ? "~/.cache/models/asr/sensevoice" : config.model_dir;

@@ -74,7 +74,8 @@ int main(int argc, char* argv[]) {
     // Parse args
     std::vector<std::string> audio_files;
     std::string engine_name = "sensevoice";
-    std::string model_dir = "~/.cache/models/asr/sensevoice";
+    std::string model_dir;
+    bool model_dir_set = false;
     std::string provider = "spacemit";
     std::string endpoint = "http://127.0.0.1:8063/v1/chat/completions";
     std::string model_tag = "qwen3-asr";
@@ -87,6 +88,7 @@ int main(int argc, char* argv[]) {
             engine_name = argv[++i];
         } else if (arg == "--model-dir" && i + 1 < argc) {
             model_dir = argv[++i];
+            model_dir_set = true;
         } else if (arg == "--rounds" && i + 1 < argc) {
             rounds = std::atoi(argv[++i]);
             if (rounds < 1) rounds = 1;
@@ -102,7 +104,6 @@ int main(int argc, char* argv[]) {
             audio_files.push_back(expandHome(argv[i]));
         }
     }
-    model_dir = expandHome(model_dir);
 
     if (audio_files.empty()) {
         std::cerr << "Error: no audio files specified" << std::endl;
@@ -125,7 +126,9 @@ int main(int argc, char* argv[]) {
         config.model = model_tag;
         config.timeout = timeout;
     } else {
-        config.model_dir = model_dir;
+        if (model_dir_set) {
+            config.model_dir = expandHome(model_dir);
+        }
         config.provider = provider;
     }
 

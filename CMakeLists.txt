@@ -29,7 +29,7 @@ endif()
 
 option(BUILD_STREAM_DEMO "Build stream demo and Python bindings (requires audio component)" ${_IN_SDK_BUILD})
 option(BUILD_PYTHON_BINDINGS "Build Python bindings (requires BUILD_STREAM_DEMO=ON)" ON)
-option(ASR_MODEL_FETCH_OFF "Disable automatic model downloading at configure time" OFF)
+option(ASR_MODEL_FETCH_OFF "Disable automatic model downloading at configure time" ON)
 
 # -------------------------------------------------------
 # Find Dependencies

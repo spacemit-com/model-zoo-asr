@@ -31,7 +31,8 @@ endforeach()
 
 if(_need_download)
   if(DEFINED ASR_MODEL_FETCH_OFF AND ASR_MODEL_FETCH_OFF)
-    message(FATAL_ERROR "Zipformer model not found at ${_ZIPFORMER_MODEL_DIR} and fetch is disabled (ASR_MODEL_FETCH_OFF)")
+    message(WARNING "Zipformer model not found at ${_ZIPFORMER_MODEL_DIR}, fetch disabled (ASR_MODEL_FETCH_OFF). Will attempt runtime download.")
+    return()
   endif()
 
   message(STATUS "Fetching Zipformer model to ${_ZIPFORMER_MODEL_DIR} ...")

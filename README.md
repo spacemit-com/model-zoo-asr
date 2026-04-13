@@ -37,15 +37,15 @@ sudo apt-get install -y build-essential cmake \
 | 选项 | 默认值 | 说明 |
 |------|--------|------|
 | `USE_SPACEMIT_EP` | **ON** | 启用 SpaceMIT EP 加速（K3 平台）。非 K3 平台如未安装 libspacemit_ep 会自动跳过并打印 warning |
-| `ASR_MODEL_FETCH_OFF` | OFF | 设为 ON 可禁用 cmake 配置阶段的自动模型下载（离线编译场景） |
+| `ASR_MODEL_FETCH_OFF` | **ON** | 默认禁用 cmake 配置阶段的自动模型下载。设为 OFF 可开启自动下载（`cmake .. -DASR_MODEL_FETCH_OFF=OFF`） |
 | `BUILD_STREAM_DEMO` | OFF（独立编译） | 编译流式 demo，需 audio 组件 + PortAudio |
 | `BUILD_PYTHON_BINDINGS` | ON | 编译 Python 绑定，需 pybind11 |
 
 ### 2.2. 下载模型
 
-> **自动下载**：运行 `cmake ..` 时会自动下载三个后端的模型到 `~/.cache/models/asr/`。此外，程序运行时如检测到模型缺失也会自动下载（覆盖交叉编译部署场景）。以下手动下载步骤仅作备选。
+> **默认行为**：cmake 配置阶段**不会**自动下载模型。程序运行时如检测到模型缺失会自动下载（覆盖交叉编译部署场景）。
 >
-> 如需禁用 cmake 阶段自动下载：`cmake .. -DASR_MODEL_FETCH_OFF=ON`
+> 如需在 cmake 配置阶段自动下载模型：`cmake .. -DASR_MODEL_FETCH_OFF=OFF`
 
 #### 2.2.1 SenseVoice 模型（本地 ONNX）
 

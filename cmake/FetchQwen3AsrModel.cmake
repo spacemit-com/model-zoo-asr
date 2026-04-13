@@ -32,7 +32,8 @@ endforeach()
 
 if(_need_download)
   if(DEFINED ASR_MODEL_FETCH_OFF AND ASR_MODEL_FETCH_OFF)
-    message(FATAL_ERROR "Qwen3-ASR model not found at ${_QWEN3_ASR_MODEL_DIR} and fetch is disabled (ASR_MODEL_FETCH_OFF)")
+    message(WARNING "Qwen3-ASR model not found at ${_QWEN3_ASR_MODEL_DIR}, fetch disabled (ASR_MODEL_FETCH_OFF). Will attempt runtime download.")
+    return()
   endif()
 
   message(STATUS "Fetching Qwen3-ASR model to ${_QWEN3_ASR_MODEL_DIR} ...")

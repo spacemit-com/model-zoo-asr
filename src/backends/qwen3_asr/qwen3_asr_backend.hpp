@@ -55,11 +55,11 @@ private:
 
     std::string endpoint_;
     std::string model_;
-    long timeout_sec_ = 60;
+    int64_t timeout_sec_ = 60;
 
     // Core: send audio samples to llama-server, return transcribed text.
     ErrorInfo transcribe(const float* samples, size_t count,
-                         int sample_rate, std::string& out_text);
+                            int sample_rate, std::string& out_text);
 
     // Audio helpers
     static std::vector<float> convertToFloat(const AudioChunk& audio);
@@ -70,12 +70,12 @@ private:
     static std::string wavEncode(const float* samples, size_t count, int sample_rate);
     static std::string extractContent(const std::string& json);
     static std::string httpPost(const std::string& url, const std::string& body,
-                                long timeout_sec, std::string& err_msg);
+                                    int64_t timeout_sec, std::string& err_msg);
 
     // Result builder
     RecognitionResult buildResult(const std::string& text,
-                                 int64_t audio_duration_ms,
-                                 int64_t processing_time_ms);
+                                    int64_t audio_duration_ms,
+                                    int64_t processing_time_ms);
 };
 
 }  // namespace asr

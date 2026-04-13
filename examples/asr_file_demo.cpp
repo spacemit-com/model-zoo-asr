@@ -53,7 +53,10 @@ void printUsage(const char* program) {
     std::cout << std::endl;
     std::cout << "Examples:" << std::endl;
     std::cout << "  " << program << " ~/test.wav" << std::endl;
-    std::cout << "  " << program << " a.wav b.wav --engine qwen3-asr --endpoint http://10.0.90.72:8063/v1/chat/completions" << std::endl;
+    std::cout << "  " << program
+                << " a.wav b.wav --engine qwen3-asr"
+                << " --endpoint http://10.0.90.72:8063/v1/chat/completions"
+                << std::endl;
     std::cout << "  " << program << " a.wav b.wav --model-dir /path/to/models" << std::endl;
 }
 

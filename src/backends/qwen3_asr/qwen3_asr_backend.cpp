@@ -14,6 +14,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace asr {
@@ -47,8 +48,8 @@ std::string Qwen3ASRBackend::base64Encode(const void* data, size_t len) {
 // WAV in-memory encoder (PCM16, mono)
 // ============================================================================
 
-std::string Qwen3ASRBackend::wavEncode(const float* samples, size_t count,
-                                       int sample_rate) {
+std::string Qwen3ASRBackend::wavEncode(
+    const float* samples, size_t count, int sample_rate) {
     // Convert float [-1,1] to int16
     std::vector<int16_t> pcm16(count);
     for (size_t i = 0; i < count; ++i) {
@@ -198,8 +199,9 @@ static size_t curlWriteCallback(char* ptr, size_t size, size_t nmemb, void* ud) 
     return size * nmemb;
 }
 
-std::string Qwen3ASRBackend::httpPost(const std::string& url, const std::string& body,
-                                      long timeout_sec, std::string& err_msg) {
+std::string Qwen3ASRBackend::httpPost(
+    const std::string& url, const std::string& body,
+    int64_t timeout_sec, std::string& err_msg) {
     CURL* curl = curl_easy_init();
     if (!curl) {
         err_msg = "curl_easy_init failed";
@@ -213,7 +215,7 @@ std::string Qwen3ASRBackend::httpPost(const std::string& url, const std::string&
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(body.size()));
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<int64_t>(body.size()));
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curlWriteCallback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, timeout_sec);
@@ -224,7 +226,7 @@ std::string Qwen3ASRBackend::httpPost(const std::string& url, const std::string&
         err_msg = curl_easy_strerror(res);
         response.clear();
     } else {
-        long http_code = 0;
+        int64_t http_code = 0;
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
         if (http_code != 200) {
             err_msg = "HTTP " + std::to_string(http_code);
@@ -318,8 +320,8 @@ ErrorInfo Qwen3ASRBackend::initialize(const ASRConfig& config) {
     timeout_sec_ = std::stol(get("timeout", "60"));
 
     std::cout << "[Qwen3ASR] endpoint=" << endpoint_
-              << " model=" << model_
-              << " timeout=" << timeout_sec_ << "s" << std::endl;
+            << " model=" << model_
+            << " timeout=" << timeout_sec_ << "s" << std::endl;
 
     initialized_.store(true);
     return ErrorInfo::ok();
@@ -333,8 +335,9 @@ void Qwen3ASRBackend::shutdown() {
 // Core transcription
 // ============================================================================
 
-ErrorInfo Qwen3ASRBackend::transcribe(const float* samples, size_t count,
-                                      int sample_rate, std::string& out_text) {
+ErrorInfo Qwen3ASRBackend::transcribe(
+    const float* samples, size_t count,
+    int sample_rate, std::string& out_text) {
     // 1. Encode to WAV bytes
     std::string wav = wavEncode(samples, count, sample_rate);
     if (wav.empty()) {
@@ -342,7 +345,7 @@ ErrorInfo Qwen3ASRBackend::transcribe(const float* samples, size_t count,
         return ErrorInfo::error(ErrorCode::INTERNAL_ERROR, "WAV encoding failed");
     }
     std::cerr << "[Qwen3ASR] WAV encoded: " << wav.size() << " bytes, "
-              << count << " samples @ " << sample_rate << " Hz" << std::endl;
+            << count << " samples @ " << sample_rate << " Hz" << std::endl;
 
     // 2. Base64 encode
     std::string b64 = base64Encode(wav.data(), wav.size());
@@ -354,15 +357,15 @@ ErrorInfo Qwen3ASRBackend::transcribe(const float* samples, size_t count,
     // Escape b64 is safe (only base64 chars). Language prompt is also safe.
     std::ostringstream json;
     json << R"({"model":")" << model_
-         << R"(","messages":[{"role":"user","content":[)"
-         << R"({"type":"input_audio","input_audio":{"data":")" << b64
-         << R"(","format":"wav"}},)"
-         << R"({"type":"text","text":"language )" << lang_prompt << R"(<asr_text>"})"
-         << R"(]}],"max_tokens":)" << 512
-         << R"(,"temperature":0})";
+        << R"(","messages":[{"role":"user","content":[)"
+        << R"({"type":"input_audio","input_audio":{"data":")" << b64
+        << R"(","format":"wav"}},)"
+        << R"({"type":"text","text":"language )" << lang_prompt << R"(<asr_text>"})"
+        << R"(]}],"max_tokens":)" << 512
+        << R"(,"temperature":0})";
 
     std::cerr << "[Qwen3ASR] POST " << endpoint_
-              << " payload=" << json.str().size() << " bytes" << std::endl;
+            << " payload=" << json.str().size() << " bytes" << std::endl;
 
     // 4. HTTP POST
     std::string err_msg;
@@ -376,7 +379,7 @@ ErrorInfo Qwen3ASRBackend::transcribe(const float* samples, size_t count,
                                 "llama-server request failed: " + err_msg);
 
     std::cerr << "[Qwen3ASR] Response (" << response.size() << " bytes): "
-              << response.substr(0, 300) << std::endl;
+                << response.substr(0, 300) << std::endl;
 
     // 5. Parse response
     out_text = extractContent(response);
@@ -413,7 +416,7 @@ ErrorInfo Qwen3ASRBackend::recognize(const AudioChunk& audio, RecognitionResult&
 
     std::string text;
     auto err = transcribe(audio_float.data(), audio_float.size(),
-                          config_.sample_rate, text);
+                            config_.sample_rate, text);
     if (!err.isOk()) return err;
 
     auto t1 = std::chrono::steady_clock::now();
@@ -424,7 +427,7 @@ ErrorInfo Qwen3ASRBackend::recognize(const AudioChunk& audio, RecognitionResult&
 }
 
 ErrorInfo Qwen3ASRBackend::recognizeFile(const std::string& file_path,
-                                         RecognitionResult& result) {
+                                        RecognitionResult& result) {
     if (!initialized_.load())
         return ErrorInfo::error(ErrorCode::NOT_INITIALIZED, "Not initialized");
 
@@ -476,8 +479,8 @@ ErrorInfo Qwen3ASRBackend::recognizeFile(const std::string& file_path,
 // ============================================================================
 
 RecognitionResult Qwen3ASRBackend::buildResult(const std::string& text,
-                                               int64_t audio_duration_ms,
-                                               int64_t processing_time_ms) {
+                                                int64_t audio_duration_ms,
+                                                int64_t processing_time_ms) {
     RecognitionResult result;
     SentenceResult sentence;
     sentence.text = text;

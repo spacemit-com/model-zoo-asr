@@ -93,8 +93,8 @@ static size_t writeCallback(void* contents, size_t size, size_t nmemb, void* use
     return total;
 }
 
-bool ModelDownloader::downloadFile(const std::string& url,
-                                   const std::string& output_path) {
+bool ModelDownloader::downloadFile(
+        const std::string& url, const std::string& output_path) {
     CURL* curl = curl_easy_init();
     if (!curl) {
         std::cerr << "[ModelDownloader] Failed to init curl" << std::endl;
@@ -125,7 +125,7 @@ bool ModelDownloader::downloadFile(const std::string& url,
 
     if (res != CURLE_OK) {
         std::cerr << "[ModelDownloader] Download failed: "
-                  << curl_easy_strerror(res) << std::endl;
+                << curl_easy_strerror(res) << std::endl;
         std::filesystem::remove(output_path);
         return false;
     }
@@ -180,8 +180,8 @@ bool ModelDownloader::extractArchive(const std::string& archive_path) {
             }
         } catch (const std::exception& e) {
             std::cerr << "[ModelDownloader] Warning: failed to copy "
-                      << entry.path().filename().string()
-                      << ": " << e.what() << std::endl;
+                    << entry.path().filename().string()
+                    << ": " << e.what() << std::endl;
         }
     }
 

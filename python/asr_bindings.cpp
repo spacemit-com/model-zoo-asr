@@ -123,6 +123,7 @@ PYBIND11_MODULE(_spacemit_asr, m) {
         .value("FUNASR", asr::BackendType::FUNASR, "FunASR (cloud)")
         .value("WHISPER", asr::BackendType::WHISPER, "Whisper")
         .value("PARAFORMER", asr::BackendType::PARAFORMER, "Paraformer")
+        .value("ZIPFORMER", asr::BackendType::ZIPFORMER, "Zipformer CTC (local ONNX)")
         .value("CUSTOM", asr::BackendType::CUSTOM, "Custom backend")
         .export_values();
 

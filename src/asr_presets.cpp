@@ -21,6 +21,19 @@ static const std::map<std::string, std::function<AsrConfig()>>& getPresets() {
             config.model_dir = "~/.cache/models/asr/sensevoice";
             return config;
         }},
+        {"qwen3-asr", []() {
+            AsrConfig config;
+            config.engine = "qwen3-asr";
+            config.model_dir = "";
+            config.provider = "cpu";
+            return config;
+        }},
+        {"zipformer", []() {
+            AsrConfig config;
+            config.engine = "zipformer";
+            config.model_dir = "~/.cache/models/asr/zipformer";
+            return config;
+        }},
     };
     return presets;
 }

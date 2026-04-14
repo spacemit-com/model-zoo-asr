@@ -389,7 +389,17 @@ AsrEngine::AsrEngine(const AsrConfig& config)
     // 构建内部配置
     asr::ASRConfig internal_config;
 
-    if (config.engine == "sensevoice" || config.engine.empty()) {
+    if (config.engine == "qwen3-asr") {
+        internal_config.backend = asr::BackendType::QWEN3_ASR;
+        // Pass llama-server params via extra_params
+        internal_config.extra_params["endpoint"] = config.endpoint;
+        internal_config.extra_params["model"] = config.model;
+        internal_config.extra_params["timeout"] = std::to_string(config.timeout);
+    } else if (config.engine == "zipformer") {
+        std::string dir =
+            config.model_dir.empty() ? "~/.cache/models/asr/zipformer" : config.model_dir;
+        internal_config = asr::ASRConfig::zipformer(dir);
+    } else if (config.engine == "sensevoice" || config.engine.empty()) {
         std::string dir =
             config.model_dir.empty() ? "~/.cache/models/asr/sensevoice" : config.model_dir;
         internal_config = asr::ASRConfig::sensevoice(dir);

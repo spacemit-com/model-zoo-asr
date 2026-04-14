@@ -8,7 +8,7 @@
 | -------- | -------------------------------------------------------------------- |
 | 部署方式 | **本地**（如 ONNX 推理）、**云端**（可扩展 HTTP/API 等）             |
 | 识别方式 | 文件/内存阻塞识别 `Call()`、`Recognize()`；流式识别 `Start()` + `SendAudioFrame()` + `Flush()` / `Stop()` |
-| 后端     | 当前支持 SenseVoice（本地 ONNX）；接口可扩展其他本地/云端引擎         |
+| 后端     | SenseVoice（本地 ONNX）、Zipformer CTC（本地 ONNX 流式）、Qwen3-ASR（llama-server） |
 | 语言     | 中文、英文、日文、韩文、粤语、自动检测                               |
 | 接口     | C++（`include/asr_service.h`）、Python（`spacemit_asr`）             |
 
@@ -32,25 +32,101 @@ sudo apt-get install -y build-essential cmake \
 - **Python 绑定**：`pip install pybind11` 或 `apt install python3-pybind11`
 - **流式示例（C++）**：需 audio 组件 + PortAudio，`apt install portaudio19-dev`。SDK 编译时默认开启，独立编译时默认关闭（`cmake .. -DBUILD_STREAM_DEMO=ON`）
 
+**CMake 编译选项：**
+
+| 选项 | 默认值 | 说明 |
+|------|--------|------|
+| `USE_SPACEMIT_EP` | **ON** | 启用 SpaceMIT EP 加速（K3 平台）。非 K3 平台如未安装 libspacemit_ep 会自动跳过并打印 warning |
+| `ASR_MODEL_FETCH_OFF` | **ON** | 默认禁用 cmake 配置阶段的自动模型下载。设为 OFF 可开启自动下载（`cmake .. -DASR_MODEL_FETCH_OFF=OFF`） |
+| `BUILD_STREAM_DEMO` | OFF（独立编译） | 编译流式 demo，需 audio 组件 + PortAudio |
+| `BUILD_PYTHON_BINDINGS` | ON | 编译 Python 绑定，需 pybind11 |
+
 ### 2.2. 下载模型
 
-使用 SenseVoice 时需将模型放到默认路径 **`~/.cache/models/asr/sensevoice/`**，目录内需包含 `model_quant_optimized.onnx`、`vocab.txt`、`config.json`。
+> **默认行为**：cmake 配置阶段**不会**自动下载模型。程序运行时如检测到模型缺失会自动下载（覆盖交叉编译部署场景）。
+>
+> 如需在 cmake 配置阶段自动下载模型：`cmake .. -DASR_MODEL_FETCH_OFF=OFF`
 
-**模型源：**
+#### 2.2.1 SenseVoice 模型（本地 ONNX）
 
-- **进迭时空镜像（推荐）**：<https://archive.spacemit.com/spacemit-ai/model_zoo/asr/>  
-  提供 SenseVoice 模型压缩包，下载后解压到默认目录即可：
+使用 SenseVoice 时需将模型放到默认路径 **`~/.cache/models/asr/sensevoice/`**，目录内需包含 `model_quant_optimized.onnx`、`tokens.txt`、`am.mvn`。
 
-  ```bash
-  mkdir -p ~/.cache/models/asr
-  cd ~/.cache/models/asr
-  wget https://archive.spacemit.com/spacemit-ai/model_zoo/asr/sensevoice.tar.gz
-  tar -xzf sensevoice.tar.gz
-  ```
+**手动下载：**
 
-  解压后需得到 `sensevoice/` 目录（内含 `model_quant_optimized.onnx`、`vocab.txt`、`config.json`），即默认路径为 `~/.cache/models/asr/sensevoice/`。
+```bash
+mkdir -p ~/.cache/models/asr
+cd ~/.cache/models/asr
+wget https://archive.spacemit.com/spacemit-ai/model_zoo/asr/sensevoice.tar.gz
+tar -xzf sensevoice.tar.gz
+```
 
-- **其他渠道**：从 SenseVoice 官方或内部渠道获取模型文件，解压/拷贝至上述目录。
+#### 2.2.2 Qwen3-ASR 模型（llama-server）
+
+Qwen3-ASR 通过 llama-server 提供服务，需要安装 llama.cpp 工具包并下载模型。
+
+**1. 安装 llama-server：**
+
+```bash
+sudo apt install llama.cpp-tools-spacemit
+```
+
+**2. 下载模型：**
+
+```bash
+mkdir -p ~/.cache/models/asr/qwen3asr
+cd ~/.cache/models/asr/qwen3asr
+wget https://archive.spacemit.com/spacemit-ai/model_zoo/asr/qwen3-asr-0.6B-dynq-q40.tar.gz
+tar -xzf qwen3-asr-0.6B-dynq-q40.tar.gz
+```
+
+解压后目录结构：
+```
+qwen3-asr-0.6B-dynq-q40/
+├── Qwen3-ASR-0.6B-text-q40.gguf          # LLM 文本解码器
+├── Qwen3-ASR-0.6B-encoder-frontend.dynq.onnx  # 音频编码器前端
+├── Qwen3-ASR-0.6B-encoder-backend.dynq.onnx   # 音频编码器后端
+└── config.json
+```
+
+**3. 启动 llama-server：**
+
+```bash
+llama-server \
+    -m ~/.cache/models/asr/qwen3asr/qwen3-asr-0.6B-dynq-q40/Qwen3-ASR-0.6B-text-q40.gguf \
+    --media-backend smt \
+    --smt-config-dir ~/.cache/models/asr/qwen3asr/qwen3-asr-0.6B-dynq-q40/ \
+    --host 127.0.0.1 --port 8063 -t 4
+```
+
+关键参数说明：
+- `--media-backend smt`：启用 SpacemiT 媒体后端（处理音频输入）
+- `--smt-config-dir`：指定包含 ONNX 音频编码器的目录
+
+**4. 验证服务：**
+
+```bash
+curl http://127.0.0.1:8063/health
+# 应返回 {"status":"ok"}
+```
+
+#### 2.2.3 Zipformer 模型（本地 ONNX 流式）
+
+Zipformer CTC 是轻量级流式 ASR 模型，适合实时识别场景。
+
+**手动下载：**
+
+```bash
+mkdir -p ~/.cache/models/asr
+cd ~/.cache/models/asr
+wget https://archive.spacemit.com/spacemit-ai/model_zoo/asr/zipformer.tar.gz
+tar -xzf zipformer.tar.gz
+```
+
+**使用：**
+
+```bash
+./build/bin/asr_file_demo audio.wav --engine zipformer
+```
 
 ### 2.3. 下载测试音频
 
@@ -85,10 +161,18 @@ mm
 
 **运行**：运行前在 SDK 根目录执行 `source build/envsetup.sh`，使 PATH 与库路径指向 `output/staging`，然后可执行：
 
-**C++ 文件识别：**
+**C++ 文件识别（SenseVoice）：**
 
 ```bash
 asr_file_demo ~/.cache/models/assets/audio/001_zh_daily_weather.wav
+```
+
+**C++ 文件识别（Qwen3-ASR，需先启动 llama-server）：**
+
+```bash
+asr_file_demo ~/.cache/models/assets/audio/001_zh_daily_weather.wav --engine qwen3-asr
+# 指定远程服务器
+asr_file_demo audio.wav --engine qwen3-asr --endpoint http://10.0.90.72:8063/v1/chat/completions
 ```
 
 **Python 文件识别**（需已安装 Python 包或设置 PYTHONPATH 指向 SDK 构建产物）：
@@ -117,7 +201,12 @@ cd /path/to/asr
 mkdir -p build && cd build
 cmake ..
 make -j$(nproc)
+
+# SenseVoice（默认）
 ./bin/asr_file_demo ~/.cache/models/assets/audio/001_zh_daily_weather.wav
+
+# Qwen3-ASR（需先启动 llama-server，见 2.2.2）
+./bin/asr_file_demo ~/.cache/models/assets/audio/001_zh_daily_weather.wav --engine qwen3-asr
 ```
 
 **Python 文件识别：**
@@ -227,9 +316,9 @@ target_include_directories(your_target PRIVATE ${ASR_SOURCE_DIR}/include)
 
 ## 8. 附录：性能指标
 
-以下数据基于 K3 平台（SpaceMIT EP，2 线程推理）实测，为阶段性信息，持续优化中，请以最新文档为准。
+以下数据基于 K3 平台实测，为阶段性信息，持续优化中，请以最新文档为准。
 
-模型：SenseVoice (INT8)
+### SenseVoice (INT8, SpaceMIT EP, 2 线程)
 
 | 测试文件 | 音频时长 | 处理时间 | RTF |
 |----------|----------|----------|-----|
@@ -237,6 +326,18 @@ target_include_directories(your_target PRIVATE ${ASR_SOURCE_DIR}/include)
 | 002_en_daily_weather.wav | 1802 ms | 256 ms | 0.142 |
 | 003_zh_en_search.wav | 2324 ms | 335 ms | 0.144 |
 | **合计** | **5745 ms** | **858 ms** | **0.149** |
+
+### Qwen3-ASR (Q4_0, llama-server, 4 线程)
+
+| 测试文件 | 音频时长 | 处理时间 | RTF |
+|----------|----------|----------|-----|
+| 001_zh_daily_weather.wav | 1619 ms | 205 ms | 0.127 |
+
+### Zipformer CTC (CPU, 4 线程)
+
+| 测试文件 | 音频时长 | 处理时间 | RTF |
+|----------|----------|----------|-----|
+| ref.wav (14s 中文) | 14158 ms | 6622 ms | 0.468 |
 
 测试音频文件可从 [archive.spacemit.com](https://archive.spacemit.com/spacemit-ai/model_zoo/assets/audio) 下载：
 ```bash

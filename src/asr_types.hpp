@@ -176,6 +176,8 @@ enum class BackendType {
     FUNASR,         // FunASR (云端或本地)
     WHISPER,        // Whisper (未来扩展)
     PARAFORMER,     // Paraformer (未来扩展)
+    QWEN3_ASR,      // Qwen3-ASR (llama-server HTTP)
+    ZIPFORMER,      // Zipformer CTC (ONNX, 本地流式)
     CUSTOM,         // 自定义后端
 };
 
@@ -185,6 +187,8 @@ inline const char* backendTypeToString(BackendType type) {
         case BackendType::FUNASR:     return "funasr";
         case BackendType::WHISPER:    return "whisper";
         case BackendType::PARAFORMER: return "paraformer";
+        case BackendType::QWEN3_ASR:  return "qwen3-asr";
+        case BackendType::ZIPFORMER:  return "zipformer";
         case BackendType::CUSTOM:     return "custom";
         default:                      return "unknown";
     }

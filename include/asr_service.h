@@ -35,6 +35,11 @@ struct AsrConfig {
     int sample_rate = 16000;
     std::string provider = "spacemit";  // "cpu" or "spacemit"
 
+    // Qwen3-ASR llama-server settings (used when engine == "qwen3-asr")
+    std::string endpoint = "http://127.0.0.1:8063/v1/chat/completions";
+    std::string model = "qwen3-asr";
+    int timeout = 60;
+
     static AsrConfig Preset(const std::string& name);
     static std::vector<std::string> AvailablePresets();
 };

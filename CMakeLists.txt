@@ -19,9 +19,10 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 # 使用方法:
 #   SDK 编译时默认开启；独立编译时: cmake .. -DBUILD_STREAM_DEMO=ON
 #
-# 检测是否在 SDK 仓库中编译（SDK 仓库根目录应存在 build/envsetup.sh）
-set(_SDK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../..")
-if(EXISTS "${_SDK_ROOT}/build/envsetup.sh")
+# 检测是否在 SDK build 流程内编译（envsetup.sh 已 source 则 SROBOTIS_OUTPUT_ROOT 被 export）。
+# 仅文件存在不算——源码可能在仓库里，但用户裸 cmake 时 audio 组件并不一定已装，
+# 此时不应默认打开 BUILD_STREAM_DEMO。
+if(DEFINED ENV{SROBOTIS_OUTPUT_ROOT} AND NOT "$ENV{SROBOTIS_OUTPUT_ROOT}" STREQUAL "")
     set(_IN_SDK_BUILD ON)
 else()
     set(_IN_SDK_BUILD OFF)
@@ -101,15 +102,12 @@ if(BUILD_STREAM_DEMO)
     find_library(SPACE_AUDIO_LIB space_audio)
     find_library(AUDIO_RESAMPLER_LIB audio_resampler)
     find_path(AUDIO_INC_DIR audio_base.hpp)
+    pkg_check_modules(PORTAUDIO portaudio-2.0)
 
-    if(NOT SPACE_AUDIO_LIB OR NOT AUDIO_RESAMPLER_LIB OR NOT AUDIO_INC_DIR)
-        message(FATAL_ERROR
-            "BUILD_STREAM_DEMO=ON but audio component not found!\n"
-            "Install audio component first, or disable with -DBUILD_STREAM_DEMO=OFF")
+    if(NOT SPACE_AUDIO_LIB OR NOT AUDIO_RESAMPLER_LIB OR NOT AUDIO_INC_DIR OR NOT PORTAUDIO_FOUND)
+        message(WARNING "Audio component or PortAudio not found, disabling BUILD_STREAM_DEMO")
+        set(BUILD_STREAM_DEMO OFF)
     endif()
-
-    # PortAudio (required for stream demo)
-    pkg_check_modules(PORTAUDIO REQUIRED portaudio-2.0)
 endif()
 
 # -------------------------------------------------------

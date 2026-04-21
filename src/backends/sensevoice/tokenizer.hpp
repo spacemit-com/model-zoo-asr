@@ -98,6 +98,8 @@ public:
      */
     int getBlankId() const { return blank_id_; }
 
+    int getUnkId() const { return unk_id_; }
+
 private:
     Config config_;
     size_t vocab_size_ = 0;

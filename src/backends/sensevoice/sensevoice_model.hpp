@@ -18,6 +18,7 @@
 #include <string>
 #include <memory>
 #include <map>
+#include <mutex>
 
 #include "onnx_compat.hpp"  // Use compat header for RISC-V support
 
@@ -27,6 +28,7 @@ namespace sensevoice {
 // Forward declarations
 class FeatureExtractor;
 class Tokenizer;
+class HotwordScorer;
 
 /**
  * @class SenseVoiceModel
@@ -138,6 +140,11 @@ public:
      */
     void setVerbose(bool verbose) { verbose_ = verbose; }
 
+    /**
+     * @brief Set hotwords for CTC biased decoding
+     */
+    void setHotwords(const std::vector<std::string>& hotwords, float boost);
+
 private:
     Config config_;
     bool initialized_ = false;
@@ -163,6 +170,10 @@ private:
     std::map<std::string, int> language_map_;
     std::map<std::string, int> textnorm_map_;
     int blank_id_ = 0;
+
+    // Hotword biasing
+    std::unique_ptr<HotwordScorer> hotword_scorer_;
+    mutable std::mutex hotword_mutex_;
 
     // Internal methods
     bool initializeSession();

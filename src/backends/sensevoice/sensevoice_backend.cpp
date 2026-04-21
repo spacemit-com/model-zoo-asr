@@ -118,6 +118,11 @@ ErrorInfo SenseVoiceBackend::initializeASRModel() {
 
         std::cout << "[SenseVoiceBackend] SenseVoice model loaded: "
                 << model_config.model_path << std::endl;
+
+        if (!config_.hotwords.empty()) {
+            model_->setHotwords(config_.hotwords, config_.hotword_boost);
+        }
+
         return ErrorInfo::ok();
     } catch (const std::exception& e) {
         return ErrorInfo::error(ErrorCode::INTERNAL_ERROR,
@@ -393,11 +398,11 @@ void SenseVoiceBackend::processBufferedAudio(bool force_final) {
 // =============================================================================
 
 ErrorInfo SenseVoiceBackend::updateHotwords(const std::vector<std::string>& hotwords) {
-    // SenseVoice doesn't support hotwords directly
-    // This could be implemented with post-processing boost
-    (void)hotwords;
-    return ErrorInfo::error(ErrorCode::INTERNAL_ERROR,
-        "Hotword update not supported by SenseVoice backend");
+    if (!model_) {
+        return ErrorInfo::error(ErrorCode::NOT_INITIALIZED, "Model not loaded");
+    }
+    model_->setHotwords(hotwords, config_.hotword_boost);
+    return ErrorInfo::ok();
 }
 
 ErrorInfo SenseVoiceBackend::setLanguage(Language language) {

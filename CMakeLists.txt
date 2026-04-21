@@ -117,6 +117,7 @@ set(SENSEVOICE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/sensevoice/sensevoice_model.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/sensevoice/feature_extractor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/sensevoice/tokenizer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/sensevoice/hotword_scorer.cpp
 )
 
 add_library(sensevoice STATIC ${SENSEVOICE_SOURCES})

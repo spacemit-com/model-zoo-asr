@@ -273,9 +273,23 @@ class Engine:
         Args:
             enabled: True to enable, False to disable
         """
-        # Note: May require re-initialization depending on backend
         if self._config:
             self._config.punctuation_enabled = enabled
+
+    def update_hotwords(self, hotwords: list, boost: float = 1.0):
+        """
+        Update hotwords for biased CTC decoding.
+
+        Args:
+            hotwords: List of hotword strings
+            boost: Bias weight (higher = stronger boost, default 1.0)
+
+        Example:
+            >>> engine.update_hotwords(["SpacemiT", "RISC-V"], boost=2.0)
+        """
+        if not self._initialized:
+            raise RuntimeError("Engine not initialized. Call initialize() first.")
+        self._engine.update_hotwords(hotwords)
 
     # -------------------------------------------------------------------------
     # Streaming API

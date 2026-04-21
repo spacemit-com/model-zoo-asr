@@ -46,6 +46,8 @@ void printUsage(const char* program) {
     std::cout << "                Default: ~/.cache/models/asr/sensevoice" << std::endl;
     std::cout << "  --rounds N    Run N rounds of recognition (default: 1)" << std::endl;
     std::cout << "  --provider    EP: cpu | spacemit (default: spacemit)" << std::endl;
+    std::cout << "  --hotwords    Comma-separated hotwords (e.g. \"SpacemiT,进迭时空\")" << std::endl;
+    std::cout << "  --hotword-boost  Hotword boost weight (default: 2.0)" << std::endl;
     std::cout << "  --endpoint    Qwen3-ASR llama-server URL" << std::endl;
     std::cout << "                Default: http://127.0.0.1:8063/v1/chat/completions" << std::endl;
     std::cout << "  --model       Qwen3-ASR model tag (default: qwen3-asr)" << std::endl;
@@ -53,6 +55,7 @@ void printUsage(const char* program) {
     std::cout << std::endl;
     std::cout << "Examples:" << std::endl;
     std::cout << "  " << program << " ~/test.wav" << std::endl;
+    std::cout << "  " << program << " a.wav --hotwords \"SpacemiT,进迭时空\" --hotword-boost 3.0" << std::endl;
     std::cout << "  " << program
                 << " a.wav b.wav --engine qwen3-asr"
                 << " --endpoint http://10.0.90.72:8063/v1/chat/completions"
@@ -80,6 +83,8 @@ int main(int argc, char* argv[]) {
     std::string model_dir;
     bool model_dir_set = false;
     std::string provider = "spacemit";
+    std::string hotwords_str;
+    float hotword_boost = 2.0f;
     std::string endpoint = "http://127.0.0.1:8063/v1/chat/completions";
     std::string model_tag = "qwen3-asr";
     int timeout = 60;
@@ -97,6 +102,10 @@ int main(int argc, char* argv[]) {
             if (rounds < 1) rounds = 1;
         } else if (arg == "--provider" && i + 1 < argc) {
             provider = argv[++i];
+        } else if (arg == "--hotwords" && i + 1 < argc) {
+            hotwords_str = argv[++i];
+        } else if (arg == "--hotword-boost" && i + 1 < argc) {
+            hotword_boost = std::stof(argv[++i]);
         } else if (arg == "--endpoint" && i + 1 < argc) {
             endpoint = argv[++i];
         } else if (arg == "--model" && i + 1 < argc) {
@@ -135,6 +144,25 @@ int main(int argc, char* argv[]) {
         config.provider = provider;
     }
 
+    // 解析热词
+    if (!hotwords_str.empty()) {
+        std::vector<std::string> words;
+        std::string word;
+        for (char c : hotwords_str) {
+            if (c == ',') {
+                if (!word.empty()) {
+                    words.push_back(word);
+                    word.clear();
+                }
+            } else {
+                word += c;
+            }
+        }
+        if (!word.empty()) words.push_back(word);
+        config.hotwords = words;
+        config.hotword_boost = hotword_boost;
+    }
+
     auto engine = std::make_shared<SpacemiT::AsrEngine>(config);
     if (!engine->IsInitialized()) {
         std::cerr << "引擎初始化失败!" << std::endl;
@@ -152,6 +180,14 @@ int main(int argc, char* argv[]) {
         std::cout << "Timeout: " << cfg.timeout << "s" << std::endl;
     } else {
         std::cout << "Provider: " << provider << std::endl;
+    }
+    if (!cfg.hotwords.empty()) {
+        std::cout << "热词: ";
+        for (size_t j = 0; j < cfg.hotwords.size(); ++j) {
+            if (j > 0) std::cout << ", ";
+            std::cout << cfg.hotwords[j];
+        }
+        std::cout << " (boost=" << cfg.hotword_boost << ")" << std::endl;
     }
     std::cout << "文件数: " << audio_files.size() << std::endl;
     std::cout << "轮次: " << rounds << std::endl;

@@ -87,7 +87,9 @@ class Config:
 
     @provider.setter
     def provider(self, value: str):
-        self._config.extra_params["provider"] = value
+        params = self._config.extra_params
+        params["provider"] = value
+        self._config.extra_params = params
 
 
 class Result:

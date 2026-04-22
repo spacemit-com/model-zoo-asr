@@ -74,15 +74,20 @@ endif()
 pkg_check_modules(SAMPLERATE samplerate)
 
 # kaldi-native-fbank (for Zipformer feature extraction)
+# Force static build so the library is linked into _spacemit_asr.so directly,
+# eliminating the runtime dependency on libkaldi-native-fbank-core.so
 include(FetchContent)
 set(KALDI_NATIVE_FBANK_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(KALDI_NATIVE_FBANK_BUILD_PYTHON OFF CACHE BOOL "" FORCE)
+set(_SAVED_BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS})
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
     kaldi_native_fbank
     GIT_REPOSITORY https://github.com/csukuangfj/kaldi-native-fbank
     GIT_TAG master
 )
 FetchContent_MakeAvailable(kaldi_native_fbank)
+set(BUILD_SHARED_LIBS ${_SAVED_BUILD_SHARED_LIBS} CACHE BOOL "" FORCE)
 set(KALDI_FBANK_INCLUDE_DIRS
     ${kaldi_native_fbank_SOURCE_DIR}
     ${kaldi_native_fbank_SOURCE_DIR}/kaldi-native-fbank/csrc

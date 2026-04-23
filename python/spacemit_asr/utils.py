@@ -67,10 +67,10 @@ def recognize_audio(
     """
     # Resample if needed
     if sample_rate != 16000:
-        resampler = _asr.Resampler(sample_rate, 16000, 1)
+        from .stream import _resample_linear
         if audio.dtype != np.float32:
             audio = audio.astype(np.float32)
-        audio = resampler.process(audio)
+        audio = _resample_linear(audio, sample_rate, 16000)
 
     config = Config(model_dir)
     config.language = language
@@ -92,7 +92,8 @@ def list_devices() -> List[Tuple[int, str]]:
         for idx, name in devices:
             print(f"[{idx}] {name}")
     """
-    return _asr.AudioInputStream.list_devices()
+    from .stream import AudioStream
+    return AudioStream.list_devices()
 
 
 def get_version() -> str:

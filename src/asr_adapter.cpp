@@ -10,6 +10,7 @@
  */
 
 #include <chrono>
+#include <fstream>
 #include <iomanip>
 #include <memory>
 #include <mutex>
@@ -417,6 +418,11 @@ AsrEngine::AsrEngine(const AsrConfig& config)
         internal_config.extra_params["provider"] = config.provider;
     }
 
+    // 转发热词配置
+    internal_config.hotwords = config.hotwords;
+    internal_config.hotword_boost = config.hotword_boost;
+    internal_config.hotword_file = config.hotword_file;
+
     // 初始化引擎
     auto err = impl_->engine->initialize(internal_config);
     impl_->initialized = err.isOk();
@@ -632,8 +638,34 @@ void AsrEngine::SetLanguage(const std::string& language) {
 
 void AsrEngine::SetPunctuation(bool enabled) {
     impl_->public_config.punctuation = enabled;
-    // 注意：内部引擎可能不支持动态修改标点设置
-    // 这里只更新公开配置，实际效果取决于后端实现
+}
+
+void AsrEngine::SetHotwords(const std::vector<std::string>& hotwords, float boost) {
+    impl_->public_config.hotwords = hotwords;
+    impl_->public_config.hotword_boost = boost;
+    if (impl_->initialized && impl_->engine) {
+        impl_->engine->updateHotwords(hotwords);
+    }
+}
+
+void AsrEngine::LoadHotwordFile(const std::string& file_path, float default_boost) {
+    std::vector<std::string> words;
+    std::ifstream file(file_path);
+    if (!file.is_open()) {
+        return;
+    }
+    std::string line;
+    while (std::getline(file, line)) {
+        if (line.empty()) continue;
+        auto tab_pos = line.find('\t');
+        if (tab_pos != std::string::npos) {
+            words.push_back(line.substr(0, tab_pos));
+        } else {
+            words.push_back(line);
+        }
+    }
+    SetHotwords(words, default_boost);
+    impl_->public_config.hotword_file = file_path;
 }
 
 AsrConfig AsrEngine::GetConfig() const {

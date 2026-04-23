@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "backends/sensevoice/feature_extractor.hpp"
+#include "backends/sensevoice/hotword_scorer.hpp"
 #include "backends/sensevoice/tokenizer.hpp"
 
 namespace asr {
@@ -351,20 +352,33 @@ std::vector<int> SenseVoiceModel::decodeCTC(const float* logits, int seq_len, in
     std::vector<int> tokens;
     tokens.reserve(seq_len / 2);
 
+    std::lock_guard<std::mutex> lock(hotword_mutex_);
+    bool has_scorer = hotword_scorer_ && !hotword_scorer_->empty();
+    if (has_scorer) {
+        hotword_scorer_->reset();
+    }
+
     int prev_token = -1;
     for (int t = 0; t < seq_len; ++t) {
+        const float* frame = logits + t * vocab_size;
         int max_token = 0;
-        float max_prob = logits[t * vocab_size];
-
+        float max_prob = frame[0];
         for (int v = 1; v < vocab_size; ++v) {
-            if (logits[t * vocab_size + v] > max_prob) {
-                max_prob = logits[t * vocab_size + v];
+            if (frame[v] > max_prob) {
+                max_prob = frame[v];
                 max_token = v;
             }
+        }
+        if (has_scorer) {
+            hotword_scorer_->applyBias(
+                    frame, vocab_size, &max_token, &max_prob);
         }
 
         if (max_token != blank_id_ && max_token != prev_token) {
             tokens.push_back(max_token);
+            if (has_scorer) {
+                hotword_scorer_->advanceFrame(max_token);
+            }
         }
         prev_token = max_token;
     }
@@ -383,6 +397,17 @@ int SenseVoiceModel::getLanguageId(const std::string& language) {
 
 int SenseVoiceModel::getTextnormId(bool use_itn) {
     return use_itn ? textnorm_map_["withitn"] : textnorm_map_["woitn"];
+}
+
+void SenseVoiceModel::setHotwords(const std::vector<std::string>& hotwords, float boost) {
+    std::lock_guard<std::mutex> lock(hotword_mutex_);
+    if (hotwords.empty()) {
+        hotword_scorer_.reset();
+        return;
+    }
+    if (!tokenizer_) return;
+    hotword_scorer_ = std::make_unique<HotwordScorer>();
+    hotword_scorer_->build(hotwords, *tokenizer_, boost);
 }
 
 }  // namespace sensevoice

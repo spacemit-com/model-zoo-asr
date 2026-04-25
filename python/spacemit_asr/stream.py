@@ -11,13 +11,13 @@ import time
 from .engine import Engine, Config, Result, Language
 
 
-def _lazy_import_space_audio():
+def _lazy_import_spacemit_audio():
     try:
-        import space_audio
-        return space_audio
+        import spacemit_audio
+        return spacemit_audio
     except ImportError:
         raise ImportError(
-            "space_audio package is required for audio streaming features.\n"
+            "spacemit_audio package is required for audio streaming features.\n"
             "Install it from: components/multimedia/audio/python/"
         )
 
@@ -35,7 +35,7 @@ def _resample_linear(samples: np.ndarray, src_rate: int, dst_rate: int) -> np.nd
 
 class AudioStream:
     """
-    Low-level audio input stream backed by space_audio.AudioCapture.
+    Low-level audio input stream backed by spacemit_audio.AudioCapture.
 
     Example:
         stream = AudioStream(sample_rate=16000, channels=1)
@@ -58,7 +58,7 @@ class AudioStream:
         frames_per_buffer: int = 1024,
         device_index: int = -1
     ):
-        self._sa = _lazy_import_space_audio()
+        self._sa = _lazy_import_spacemit_audio()
         self._sample_rate = sample_rate
         self._channels = channels
         self._frames_per_buffer = frames_per_buffer
@@ -149,7 +149,7 @@ class AudioStream:
 
     @staticmethod
     def list_devices() -> List[Tuple[int, str]]:
-        sa = _lazy_import_space_audio()
+        sa = _lazy_import_spacemit_audio()
         return sa.AudioCapture.list_devices()
 
 

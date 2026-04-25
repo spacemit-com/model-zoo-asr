@@ -93,6 +93,17 @@ set(KALDI_FBANK_INCLUDE_DIRS
     ${kaldi_native_fbank_SOURCE_DIR}/kaldi-native-fbank/csrc
 )
 
+foreach(_knf_pic_target
+        kaldi-native-fbank-core
+        kissfft-float
+        kissfft-double
+        kissfft-int16_t
+        kissfft)
+    if(TARGET ${_knf_pic_target})
+        set_target_properties(${_knf_pic_target} PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    endif()
+endforeach()
+
 # -------------------------------------------------------
 # Fetch ASR Models
 # -------------------------------------------------------
@@ -104,12 +115,12 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/FetchQwen3AsrModel.cmake)
 # Audio Component (optional, for stream demo)
 # -------------------------------------------------------
 if(BUILD_STREAM_DEMO)
-    find_library(SPACE_AUDIO_LIB space_audio)
+    find_library(SPACEMIT_AUDIO_LIB spacemit_audio)
     find_library(AUDIO_RESAMPLER_LIB audio_resampler)
     find_path(AUDIO_INC_DIR audio_base.hpp)
     pkg_check_modules(PORTAUDIO portaudio-2.0)
 
-    if(NOT SPACE_AUDIO_LIB OR NOT AUDIO_RESAMPLER_LIB OR NOT AUDIO_INC_DIR OR NOT PORTAUDIO_FOUND)
+    if(NOT SPACEMIT_AUDIO_LIB OR NOT AUDIO_RESAMPLER_LIB OR NOT AUDIO_INC_DIR OR NOT PORTAUDIO_FOUND)
         message(WARNING "Audio component or PortAudio not found, disabling BUILD_STREAM_DEMO")
         set(BUILD_STREAM_DEMO OFF)
     endif()
@@ -226,6 +237,26 @@ install(TARGETS stt sensevoice zipformer
 )
 install(FILES include/asr_service.h DESTINATION include)
 
+if(TARGET kaldi-native-fbank-core)
+    install(TARGETS kaldi-native-fbank-core
+        ARCHIVE DESTINATION lib
+        LIBRARY DESTINATION lib
+    )
+endif()
+
+foreach(_knf_runtime_dep
+        kissfft-float
+        kissfft-double
+        kissfft-int16_t
+        kissfft)
+    if(TARGET ${_knf_runtime_dep})
+        install(TARGETS ${_knf_runtime_dep}
+            ARCHIVE DESTINATION lib
+            LIBRARY DESTINATION lib
+        )
+    endif()
+endforeach()
+
 # -------------------------------------------------------
 # ASR File Demo Executable (always built)
 # -------------------------------------------------------
@@ -292,7 +323,7 @@ if(BUILD_STREAM_DEMO)
 
     target_link_libraries(asr_stream_demo
         PRIVATE stt
-        PRIVATE ${SPACE_AUDIO_LIB}
+        PRIVATE ${SPACEMIT_AUDIO_LIB}
         PRIVATE ${AUDIO_RESAMPLER_LIB}
         PRIVATE ${PORTAUDIO_LIBRARIES}
         PRIVATE ${SAMPLERATE_LIBRARIES}

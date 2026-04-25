@@ -555,15 +555,15 @@ class MyCallback(AsrCallback):
 import time
 import spacemit_asr
 from spacemit_asr import AsrCallback
-import space_audio
-from space_audio import AudioCapture
+import spacemit_audio
+from spacemit_audio import AudioCapture
 
 class StreamingCallback(AsrCallback):
     def on_event(self, result):
         print(f">>> {result.text}")
 
 # 配置音频采集 (16kHz, mono)
-space_audio.init(sample_rate=16000, channels=1, chunk_size=3200)
+spacemit_audio.init(sample_rate=16000, channels=1, chunk_size=3200)
 
 # 创建回调和引擎
 callback = StreamingCallback()

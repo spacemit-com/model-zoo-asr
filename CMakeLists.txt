@@ -93,6 +93,17 @@ set(KALDI_FBANK_INCLUDE_DIRS
     ${kaldi_native_fbank_SOURCE_DIR}/kaldi-native-fbank/csrc
 )
 
+foreach(_knf_pic_target
+        kaldi-native-fbank-core
+        kissfft-float
+        kissfft-double
+        kissfft-int16_t
+        kissfft)
+    if(TARGET ${_knf_pic_target})
+        set_target_properties(${_knf_pic_target} PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    endif()
+endforeach()
+
 # -------------------------------------------------------
 # Fetch ASR Models
 # -------------------------------------------------------
@@ -225,6 +236,26 @@ install(TARGETS stt sensevoice zipformer
     LIBRARY DESTINATION lib
 )
 install(FILES include/asr_service.h DESTINATION include)
+
+if(TARGET kaldi-native-fbank-core)
+    install(TARGETS kaldi-native-fbank-core
+        ARCHIVE DESTINATION lib
+        LIBRARY DESTINATION lib
+    )
+endif()
+
+foreach(_knf_runtime_dep
+        kissfft-float
+        kissfft-double
+        kissfft-int16_t
+        kissfft)
+    if(TARGET ${_knf_runtime_dep})
+        install(TARGETS ${_knf_runtime_dep}
+            ARCHIVE DESTINATION lib
+            LIBRARY DESTINATION lib
+        )
+    endif()
+endforeach()
 
 # -------------------------------------------------------
 # ASR File Demo Executable (always built)

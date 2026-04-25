@@ -104,12 +104,12 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/FetchQwen3AsrModel.cmake)
 # Audio Component (optional, for stream demo)
 # -------------------------------------------------------
 if(BUILD_STREAM_DEMO)
-    find_library(SPACE_AUDIO_LIB space_audio)
+    find_library(SPACEMIT_AUDIO_LIB spacemit_audio)
     find_library(AUDIO_RESAMPLER_LIB audio_resampler)
     find_path(AUDIO_INC_DIR audio_base.hpp)
     pkg_check_modules(PORTAUDIO portaudio-2.0)
 
-    if(NOT SPACE_AUDIO_LIB OR NOT AUDIO_RESAMPLER_LIB OR NOT AUDIO_INC_DIR OR NOT PORTAUDIO_FOUND)
+    if(NOT SPACEMIT_AUDIO_LIB OR NOT AUDIO_RESAMPLER_LIB OR NOT AUDIO_INC_DIR OR NOT PORTAUDIO_FOUND)
         message(WARNING "Audio component or PortAudio not found, disabling BUILD_STREAM_DEMO")
         set(BUILD_STREAM_DEMO OFF)
     endif()
@@ -292,7 +292,7 @@ if(BUILD_STREAM_DEMO)
 
     target_link_libraries(asr_stream_demo
         PRIVATE stt
-        PRIVATE ${SPACE_AUDIO_LIB}
+        PRIVATE ${SPACEMIT_AUDIO_LIB}
         PRIVATE ${AUDIO_RESAMPLER_LIB}
         PRIVATE ${PORTAUDIO_LIBRARIES}
         PRIVATE ${SAMPLERATE_LIBRARIES}

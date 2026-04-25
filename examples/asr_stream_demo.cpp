@@ -4,9 +4,9 @@
  */
 
 /**
- * SpaceAudioSDK 流式识别示例 (定时 Flush)
+ * SpacemitAudioSDK 流式识别示例 (定时 Flush)
  *
- * 使用 SpaceAudio::AudioCapture 采集麦克风，每 3 秒自动 Flush 触发识别。
+ * 使用 SpacemitAudio::AudioCapture 采集麦克风，每 3 秒自动 Flush 触发识别。
  * 简化演示版本，无 VAD。
  *
  * 音频流程: 48kHz stereo → 重采样 → 16kHz mono → ASR
@@ -181,7 +181,7 @@ void listDevices() {
     std::cout << "可用音频输入设备:" << std::endl;
     std::cout << "==================" << std::endl;
 
-    auto devices = SpaceAudio::AudioCapture::ListDevices();
+    auto devices = SpacemitAudio::AudioCapture::ListDevices();
 
     if (devices.empty()) {
         std::cout << "  未找到设备!" << std::endl;
@@ -329,7 +329,7 @@ int main(int argc, char* argv[]) {
     signal(SIGTERM, signalHandler);
 
     std::cout << "========================================" << std::endl;
-    std::cout << "  SpaceAudioSDK 流式识别 (定时 Flush)" << std::endl;
+    std::cout << "  SpacemitAudioSDK 流式识别 (定时 Flush)" << std::endl;
     std::cout << "========================================" << std::endl;
     std::cout << std::endl;
     std::cout << "设备索引: " << (device_index == -1 ? "默认" : std::to_string(device_index)) << std::endl;
@@ -372,7 +372,7 @@ int main(int argc, char* argv[]) {
     AudioBuffer audio_buffer;
 
     // 创建音频采集器
-    SpaceAudio::AudioCapture capture(device_index);
+    SpacemitAudio::AudioCapture capture(device_index);
 
     // 设置回调 - 仅收集音频
     capture.SetCallback([&](const uint8_t* data, size_t size) {

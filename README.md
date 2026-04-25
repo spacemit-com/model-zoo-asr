@@ -140,14 +140,14 @@ wget https://archive.spacemit.com/spacemit-ai/model_zoo/assets/audio/001_zh_dail
 
 更多音频资源可在 `https://archive.spacemit.com/spacemit-ai/model_zoo/assets/audio` 按需下载。
 
-### 2.3. 测试
+### 2.4. 测试
 
 本节提供示例程序的编译与运行方式，便于开发者快速验证效果。使用前需先按下列两种方式之一完成编译，再运行对应示例。
 
-- **在 SDK 中验证**（2.3.1）：在已拉取的 SpacemiT Robot SDK 工程内用 `mm` 编译，产物部署到 `output/staging`，适合整机集成或与 LLM、TTS 等模块联调。
-- **独立构建下验证**（2.3.2）：在 ASR 组件目录下用 CMake 本地编译，不依赖完整 SDK，适合快速体验或在不使用 repo 的环境下使用。
+- **在 SDK 中验证**（2.4.1）：在已拉取的 SpacemiT Robot SDK 工程内用 `mm` 编译，产物部署到 `output/staging`，适合整机集成或与 LLM、TTS 等模块联调。
+- **独立构建下验证**（2.4.2）：在 ASR 组件目录下用 CMake 本地编译，不依赖完整 SDK，适合快速体验或在不使用 repo 的环境下使用。
 
-#### 2.3.1. 在 SDK 中验证
+#### 2.4.1. 在 SDK 中验证
 
 **编译**：本组件已纳入 SpacemiT Robot SDK 时，在 SDK 根目录下执行。SDK 拉取与初始化见 [SpacemiT Robot SDK Manifest](https://github.com/spacemit-robotics/manifest)（使用 repo 时需先完成 `repo init`、`repo sync` 等）。
 
@@ -175,7 +175,7 @@ asr_file_demo ~/.cache/models/assets/audio/001_zh_daily_weather.wav --engine qwe
 asr_file_demo audio.wav --engine qwen3-asr --endpoint http://10.0.90.72:8063/v1/chat/completions
 ```
 
-**Python 文件识别**（需已安装 Python 包或设置 PYTHONPATH 指向 SDK 构建产物）：
+**Python 文件识别**（直接运行 `python python/examples/...` 前，需当前 Python 环境已安装 wheel，或设置 `PYTHONPATH` 指向 SDK 构建产物）：
 
 ```bash
 python python/examples/asr_file_demo.py ~/.cache/models/assets/audio/001_zh_daily_weather.wav
@@ -188,9 +188,15 @@ asr_stream_demo -l              # 列出麦克风设备
 asr_stream_demo -i 0 -t 5       # 设备 0，录音 5 秒
 ```
 
-Python 流式示例：`python python/examples/asr_stream_demo.py -l` / `--duration 5`（需已安装 `space_audio`）。
+**Python 流式识别**（需已安装 `spacemit_asr` 和 `spacemit_audio`，或设置好 `PYTHONPATH`）：
 
-#### 2.3.2. 独立构建下验证
+```bash
+python python/examples/asr_stream_demo.py -l
+python python/examples/asr_stream_demo.py --duration 5
+python python/examples/asr_stream_demo.py --duration 5 --channels 2
+```
+
+#### 2.4.2. 独立构建下验证
 
 在 ASR 组件目录下完成编译后，运行下列示例。
 
@@ -212,7 +218,8 @@ make -j$(nproc)
 **Python 文件识别：**
 
 ```bash
-make -C build stt-install-python   # 或设置 PYTHONPATH
+cd /path/to/asr
+cmake --build build --target stt-install-python   # 或设置 PYTHONPATH
 python python/examples/asr_file_demo.py ~/.cache/models/assets/audio/001_zh_daily_weather.wav
 ```
 
@@ -226,29 +233,30 @@ make -j$(nproc)
 ./bin/asr_stream_demo -i 0 -t 5      # 设备 0，录音 5 秒
 ```
 
-Python 流式示例无需额外编译选项，安装 `space_audio` 后直接运行：
+Python 流式示例无需额外编译选项，安装 `spacemit_asr` 和 `spacemit_audio` 后直接运行：
 
 ```bash
 python python/examples/asr_stream_demo.py -l
 python python/examples/asr_stream_demo.py --duration 5
+python python/examples/asr_stream_demo.py --duration 5 --channels 2
 ```
 
 ## 3. 应用开发
 
-本章说明如何在自有工程中**集成 ASR 并调用 API**。环境与依赖见 [2.1](#21-安装依赖)，模型准备见 [2.2](#22-下载模型)，编译与运行示例见 [2.3](#23-测试)。
+本章说明如何在自有工程中**集成 ASR 并调用 API**。环境与依赖见 [2.1](#21-安装依赖)，模型准备见 [2.2](#22-下载模型)，编译与运行示例见 [2.4](#24-测试)。
 
 ### 3.1. 构建与集成产物
 
-无论通过 [2.3.1](#231-在-sdk-中验证)（SDK）或 [2.3.2](#232-独立构建下验证)（独立构建）哪种方式编译，完成后**应用开发所需**的库与头文件如下，集成时只需**包含头文件并链接对应库**：
+无论通过 [2.4.1](#241-在-sdk-中验证)（SDK）或 [2.4.2](#242-独立构建下验证)（独立构建）哪种方式编译，完成后**应用开发所需**的库与头文件如下，集成时只需**包含头文件并链接对应库**：
 
 | 产物 | 说明 |
 | ---- | ---- |
 | `include/asr_service.h` | **C++ API 头文件**，应用侧只需包含此头文件并链接下方库即可调用 |
 | `build/lib/libstt.a` | C++ 核心库，链接时使用 |
 | `build/lib/libsensevoice.a` | SenseVoice 后端库，链接时使用 |
-| `build/python/spacemit_asr/` | Python 包，`make stt-install-python` 安装后 `import spacemit_asr` |
+| `build/python/spacemit_asr/` | Python 包，`cmake --build build --target stt-install-python` 安装后 `import spacemit_asr` |
 
-示例可执行文件（非集成必需）：`build/bin/asr_file_demo`、`build/bin/asr_stream_demo`（SDK 默认开启，独立编译需 `-DBUILD_STREAM_DEMO=ON`）。运行与验证步骤见 [2.3.1](#231-在-sdk-中验证) 或 [2.3.2](#232-独立构建下验证)。
+示例可执行文件（非集成必需）：`build/bin/asr_file_demo`、`build/bin/asr_stream_demo`（SDK 默认开启，独立编译需 `-DBUILD_STREAM_DEMO=ON`）。运行与验证步骤见 [2.4.1](#241-在-sdk-中验证) 或 [2.4.2](#242-独立构建下验证)。
 
 ### 3.2. API 使用
 

@@ -4,7 +4,7 @@
  */
 
 /**
- * SpaceAudioSDK 静态文件识别示例
+ * SpacemitAudioSDK 静态文件识别示例
  *
  * Usage:
  *   ./asr_file_demo <audio1.wav> [audio2.wav ...] [--model-dir DIR] [--rounds N] [--provider EP]
@@ -124,7 +124,7 @@ int main(int argc, char* argv[]) {
 
     // Initialize engine once
     std::cout << "========================================" << std::endl;
-    std::cout << "    SpaceAudioSDK 文件识别测试" << std::endl;
+    std::cout << "    SpacemitAudioSDK 文件识别测试" << std::endl;
     std::cout << "========================================" << std::endl;
     std::cout << std::endl;
 

@@ -7,7 +7,7 @@ ASR 流式识别示例 - 边录边识别 (定时 flush)
 
 依赖:
     1. spacemit_asr 模块 (stt/build/python)
-    2. space_audio 模块 (audio/python)
+    2. spacemit_audio 模块 (audio/python)
 
 编译 audio 组件:
     cd audio && mkdir -p build && cd build
@@ -103,10 +103,10 @@ class StreamingCallback(AsrCallback):
 def list_devices():
     """列出音频设备"""
     try:
-        import space_audio  # noqa: F401
-        from space_audio import AudioCapture
+        import spacemit_audio  # noqa: F401
+        from spacemit_audio import AudioCapture
     except ImportError as e:
-        print("错误: 无法导入 space_audio 模块")
+        print("错误: 无法导入 spacemit_audio 模块")
         print(f"详细错误: {e}")
         return
 
@@ -132,22 +132,22 @@ def audio_capture_process(audio_queue: Queue, stop_event, device: int,
         config_queue: 配置信息队列 (输出采样率和声道数)
     """
     try:
-        import space_audio
-        from space_audio import AudioCapture
+        import spacemit_audio
+        from spacemit_audio import AudioCapture
     except ImportError as e:
         config_queue.put({'error': str(e)})
         return
 
     try:
         # 初始化音频
-        space_audio.init(
+        spacemit_audio.init(
             sample_rate=16000,
             channels=channels,
             chunk_size=3200,  # 100ms @ 16kHz
             capture_device=device,
         )
 
-        config = space_audio.get_config()
+        config = spacemit_audio.get_config()
         input_rate = config['sample_rate']
         input_channels = config['channels']
 

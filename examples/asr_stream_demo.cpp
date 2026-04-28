@@ -9,7 +9,7 @@
  * 使用 SpacemitAudio::AudioCapture 采集麦克风，每 3 秒自动 Flush 触发识别。
  * 简化演示版本，无 VAD。
  *
- * 音频流程: 48kHz stereo → 重采样 → 16kHz mono → ASR
+ * 音频流程: 16kHz 2ch → 混音 → 16kHz mono → ASR
  *
  * Usage:
  *   ./asr_stream_demo [选项]
@@ -18,6 +18,7 @@
  *   ./asr_stream_demo                # 默认设备，总时长 30 秒
  *   ./asr_stream_demo -l             # 列出设备
  *   ./asr_stream_demo -i 0 -t 60    # 设备 0，总时长 60 秒
+ *   ./asr_stream_demo -i 0 -c 1     # 强制单通道采集
  *   ./asr_stream_demo -f 5          # 每 5 秒 flush 一次
  */
 
@@ -42,7 +43,7 @@
 
 // 音频参数
 constexpr int INPUT_SAMPLE_RATE = 16000;
-constexpr int INPUT_CHANNELS = 1;
+constexpr int DEFAULT_INPUT_CHANNELS = 2;
 constexpr int OUTPUT_SAMPLE_RATE = 16000;
 constexpr int OUTPUT_CHANNELS = 1;
 
@@ -164,6 +165,7 @@ void printUsage(const char* program) {
     std::cout << std::endl;
     std::cout << "Options:" << std::endl;
     std::cout << "  -i, --input <N>    输入设备索引 (-1 为默认)" << std::endl;
+    std::cout << "  -c, --channels <N> 输入通道数 (默认 2, K3 麦克风使用 2)" << std::endl;
     std::cout << "  -t, --time <N>     录音时长秒数 (默认 30)" << std::endl;
     std::cout << "  -f, --flush <N>    Flush 间隔秒数 (默认 3)" << std::endl;
     std::cout << "  -l, --list         列出可用音频设备" << std::endl;
@@ -174,6 +176,7 @@ void printUsage(const char* program) {
     std::cout << "  " << program << "              # 默认设备，30 秒，每 3 秒 flush" << std::endl;
     std::cout << "  " << program << " -l           # 列出设备" << std::endl;
     std::cout << "  " << program << " -i 0 -t 60   # 设备 0，60 秒" << std::endl;
+    std::cout << "  " << program << " -i 0 -c 1    # 强制单通道采集" << std::endl;
     std::cout << "  " << program << " -f 5         # 每 5 秒 flush 一次" << std::endl;
 }
 
@@ -197,7 +200,8 @@ void listDevices() {
 class AudioBuffer {
 public:
     AudioBuffer()
-        : resampler_(makeResamplerConfig(INPUT_CHANNELS)) {
+        : resampler_(makeResamplerConfig(DEFAULT_INPUT_CHANNELS))
+        , channels_(DEFAULT_INPUT_CHANNELS) {
         resampler_.initialize();
     }
 
@@ -291,7 +295,7 @@ private:
     mutable std::mutex mutex_;
     std::vector<uint8_t> buffer_;  // 存储 16kHz mono PCM16
     Resampler resampler_;
-    int channels_ = INPUT_CHANNELS;
+    int channels_ = DEFAULT_INPUT_CHANNELS;
 };
 
 // =============================================================================
@@ -301,6 +305,7 @@ private:
 int main(int argc, char* argv[]) {
     // 解析参数
     int device_index = -1;
+    int input_channels = DEFAULT_INPUT_CHANNELS;
     int total_seconds = 30;
     int flush_interval = 3;  // 每 3 秒 flush 一次
     std::string provider = "spacemit";
@@ -317,6 +322,9 @@ int main(int argc, char* argv[]) {
             flush_interval = std::stoi(argv[++i]);
         } else if ((arg == "-i" || arg == "--input") && i + 1 < argc) {
             device_index = std::stoi(argv[++i]);
+        } else if ((arg == "-c" || arg == "--channels") && i + 1 < argc) {
+            input_channels = std::stoi(argv[++i]);
+            if (input_channels < 1) input_channels = DEFAULT_INPUT_CHANNELS;
         } else if ((arg == "-t" || arg == "--time") && i + 1 < argc) {
             total_seconds = std::stoi(argv[++i]);
         } else if ((arg == "-p" || arg == "--provider") && i + 1 < argc) {
@@ -333,6 +341,7 @@ int main(int argc, char* argv[]) {
     std::cout << "========================================" << std::endl;
     std::cout << std::endl;
     std::cout << "设备索引: " << (device_index == -1 ? "默认" : std::to_string(device_index)) << std::endl;
+    std::cout << "输入通道: " << input_channels << std::endl;
     std::cout << "总时长: " << total_seconds << " 秒" << std::endl;
     std::cout << "Flush 间隔: " << flush_interval << " 秒" << std::endl;
     std::cout << "Provider: " << provider << std::endl;
@@ -362,41 +371,6 @@ int main(int argc, char* argv[]) {
         << ", 标点: " << (cfg.punctuation ? "是" : "否") << std::endl;
     std::cout << std::endl;
 
-    // 创建回调实例（多态）
-    auto callback = std::make_shared<StreamCallback>();
-    asrEngine->SetCallback(callback);
-    std::cout << ">>> 已设置流式回调 (AsrEngineCallback 多态)" << std::endl;
-    std::cout << std::endl;
-
-    // 音频缓冲区
-    AudioBuffer audio_buffer;
-
-    // 创建音频采集器
-    SpacemitAudio::AudioCapture capture(device_index);
-
-    // 设置回调 - 仅收集音频
-    capture.SetCallback([&](const uint8_t* data, size_t size) {
-        audio_buffer.append(data, size);
-    });
-
-    // 启动采集
-    std::cout << ">>> 启动音频采集..." << std::endl;
-    if (!capture.Start(INPUT_SAMPLE_RATE, INPUT_CHANNELS, 4096)) {
-        std::cerr << "音频采集启动失败!" << std::endl;
-        std::cerr << "尝试运行 -l 查看可用设备" << std::endl;
-        return 1;
-    }
-
-    std::cout << "音频采集已启动 (" << INPUT_SAMPLE_RATE << "Hz, "
-        << INPUT_CHANNELS << "ch → " << OUTPUT_SAMPLE_RATE << "Hz mono)" << std::endl;
-    std::cout << "每 " << flush_interval << " 秒自动 Flush 触发识别" << std::endl;
-    std::cout << "按 Ctrl+C 停止" << std::endl;
-    std::cout << std::endl;
-    std::cout << "========================================" << std::endl;
-    std::cout << "         实时识别结果" << std::endl;
-    std::cout << "========================================" << std::endl;
-
-    // 启动流式会话 (只启动一次)
     std::cout << ">>> Warmup..." << std::endl;
     {
         std::vector<float> silence(8000, 0.0f);
@@ -409,6 +383,42 @@ int main(int argc, char* argv[]) {
     }
     std::cout << std::endl;
 
+    // 创建回调实例（多态）
+    auto callback = std::make_shared<StreamCallback>();
+    asrEngine->SetCallback(callback);
+    std::cout << ">>> 已设置流式回调 (AsrEngineCallback 多态)" << std::endl;
+    std::cout << std::endl;
+
+    // 音频缓冲区
+    AudioBuffer audio_buffer;
+    audio_buffer.setChannels(input_channels);
+
+    // 创建音频采集器
+    SpacemitAudio::AudioCapture capture(device_index);
+
+    // 设置回调 - 仅收集音频
+    capture.SetCallback([&](const uint8_t* data, size_t size) {
+        audio_buffer.append(data, size);
+    });
+
+    // 启动采集
+    std::cout << ">>> 启动音频采集..." << std::endl;
+    if (!capture.Start(INPUT_SAMPLE_RATE, input_channels, 4096)) {
+        std::cerr << "音频采集启动失败!" << std::endl;
+        std::cerr << "尝试运行 -l 查看可用设备" << std::endl;
+        return 1;
+    }
+
+    std::cout << "音频采集已启动 (" << INPUT_SAMPLE_RATE << "Hz, "
+        << input_channels << "ch → " << OUTPUT_SAMPLE_RATE << "Hz mono)" << std::endl;
+    std::cout << "每 " << flush_interval << " 秒自动 Flush 触发识别" << std::endl;
+    std::cout << "按 Ctrl+C 停止" << std::endl;
+    std::cout << std::endl;
+    std::cout << "========================================" << std::endl;
+    std::cout << "         实时识别结果" << std::endl;
+    std::cout << "========================================" << std::endl;
+
+    // 启动流式会话 (只启动一次)
     asrEngine->Start();
 
     // 主循环：每 flush_interval 秒 Flush 一次

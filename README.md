@@ -330,10 +330,11 @@ target_include_directories(your_target PRIVATE ${ASR_SOURCE_DIR}/include)
 
 | 测试文件 | 音频时长 | 处理时间 | RTF |
 |----------|----------|----------|-----|
-| 001_zh_daily_weather.wav | 1619 ms | 267 ms | 0.165 |
-| 002_en_daily_weather.wav | 1802 ms | 256 ms | 0.142 |
-| 003_zh_en_search.wav | 2324 ms | 335 ms | 0.144 |
-| **合计** | **5745 ms** | **858 ms** | **0.149** |
+| 004_zh_selling_sausages.wav | 14158 ms | 5090 ms | 0.360 |
+| 001_zh_daily_weather.wav | 1619 ms | 212 ms | 0.131 |
+| 002_en_daily_weather.wav | 1802 ms | 232 ms | 0.129 |
+| 003_zh_en_search.wav | 2324 ms | 299 ms | 0.129 |
+| **合计** | **19903 ms** | **5833 ms** | **0.293** |
 
 ### Qwen3-ASR (Q4_0, llama-server, 4 线程)
 

@@ -7,7 +7,9 @@
 
 #include <sndfile.h>
 
+#include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -21,6 +23,21 @@
 #include "model_downloader.hpp"
 
 namespace asr {
+
+namespace {
+constexpr float kEndpointSilenceThreshold = 0.0056f;  // About -45 dBFS RMS.
+constexpr int kEndpointFrameMs = 20;
+constexpr int kEndpointKeepMs = 120;
+
+bool isActiveFrame(const std::vector<float>& audio, size_t begin, size_t end) {
+    float sum_sq = 0.0f;
+    for (size_t i = begin; i < end; ++i) {
+        sum_sq += audio[i] * audio[i];
+    }
+    const float rms = std::sqrt(sum_sq / static_cast<float>(end - begin));
+    return rms >= kEndpointSilenceThreshold;
+}
+}  // namespace
 
 // Helper function to expand ~ to home directory
 static std::string expandPath(const std::string& path) {
@@ -176,10 +193,12 @@ ErrorInfo SenseVoiceBackend::recognize(const AudioChunk& audio, RecognitionResul
     // Calculate audio duration
     int64_t audio_duration_ms = (audio_float.size() * 1000) / config_.sample_rate;
 
+    auto model_audio = trimEndpointSilence(audio_float);
+
     // Call SenseVoice model
     std::string text;
     try {
-        text = model_->recognize(audio_float);
+        text = model_->recognize(model_audio);
     } catch (const std::exception& e) {
         return ErrorInfo::error(ErrorCode::INFERENCE_FAILED,
             "SenseVoice inference failed", e.what());
@@ -258,10 +277,12 @@ ErrorInfo SenseVoiceBackend::recognizeFile(const std::string& file_path,
     // Calculate audio duration (based on original file)
     int64_t audio_duration_ms = (sf_info.frames * 1000) / sf_info.samplerate;
 
+    auto model_audio = trimEndpointSilence(*audio_ptr);
+
     // Run SenseVoice model directly
     std::string text;
     try {
-        text = model_->recognize(*audio_ptr);
+        text = model_->recognize(model_audio);
     } catch (const std::exception& e) {
         return ErrorInfo::error(ErrorCode::INFERENCE_FAILED,
             "SenseVoice inference failed", e.what());
@@ -371,10 +392,12 @@ void SenseVoiceBackend::processBufferedAudio(bool force_final) {
     // Calculate audio duration
     int64_t audio_duration_ms = (audio_buffer_.size() * 1000) / config_.sample_rate;
 
+    auto model_audio = trimEndpointSilence(audio_buffer_);
+
     // Run SenseVoice model
     std::string text;
     try {
-        text = model_->recognize(audio_buffer_);
+        text = model_->recognize(model_audio);
     } catch (const std::exception& e) {
         notifyError(ErrorInfo::error(ErrorCode::INFERENCE_FAILED,
             "SenseVoice inference failed", e.what()));
@@ -462,6 +485,61 @@ std::vector<float> SenseVoiceBackend::convertToFloat(const AudioChunk& audio) {
     }
 
     return result;
+}
+
+std::vector<float> SenseVoiceBackend::trimEndpointSilence(
+    const std::vector<float>& audio) const {
+    if (!config_.vad_enabled || audio.empty() || config_.sample_rate <= 0) {
+        return audio;
+    }
+
+    const size_t frame_size = std::max<size_t>(
+        1, static_cast<size_t>(config_.sample_rate * kEndpointFrameMs / 1000));
+    const size_t keep_size = static_cast<size_t>(config_.sample_rate * kEndpointKeepMs / 1000);
+
+    size_t first_active = audio.size();
+    for (size_t pos = 0; pos < audio.size(); pos += frame_size) {
+        const size_t end = std::min(pos + frame_size, audio.size());
+        if (isActiveFrame(audio, pos, end)) {
+            first_active = pos;
+            break;
+        }
+    }
+
+    if (first_active == audio.size()) {
+        return audio;
+    }
+
+    size_t last_active_end = 0;
+    for (size_t end = audio.size(); end > 0;) {
+        const size_t begin = (end > frame_size) ? end - frame_size : 0;
+        if (isActiveFrame(audio, begin, end)) {
+            last_active_end = end;
+            break;
+        }
+        end = begin;
+    }
+
+    size_t trim_begin = (first_active > keep_size) ? first_active - keep_size : 0;
+    size_t trim_end = std::min(audio.size(), last_active_end + keep_size);
+    if (trim_end <= trim_begin) {
+        return audio;
+    }
+
+    const size_t min_saved = static_cast<size_t>(config_.sample_rate / 2);
+    if (trim_begin == 0 && trim_end == audio.size()) {
+        return audio;
+    }
+    if (audio.size() - (trim_end - trim_begin) < min_saved) {
+        return audio;
+    }
+
+    std::cout << "[SenseVoiceBackend] Trim endpoint silence: "
+            << (audio.size() * 1000 / config_.sample_rate) << " ms -> "
+            << ((trim_end - trim_begin) * 1000 / config_.sample_rate) << " ms"
+            << std::endl;
+
+    return std::vector<float>(audio.begin() + trim_begin, audio.begin() + trim_end);
 }
 
 RecognitionResult SenseVoiceBackend::buildResult(const std::string& text,

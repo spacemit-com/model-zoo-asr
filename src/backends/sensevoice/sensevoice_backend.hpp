@@ -103,6 +103,7 @@ private:
 
     // 音频转换
     std::vector<float> convertToFloat(const AudioChunk& audio);
+    std::vector<float> trimEndpointSilence(const std::vector<float>& audio) const;
 
     // 流式处理
     void processBufferedAudio(bool force_final);

@@ -64,6 +64,8 @@ tar -xzf sensevoice.tar.gz
 
 Qwen3-ASR 通过 llama-server 提供服务，需要安装 llama.cpp 工具包并下载模型。
 
+注意：Qwen3-ASR 默认不建议在 8G 内存板卡上直接运行，启动 llama-server 时可能因内存不足失败或被系统 kill。建议使用更大内存配置；如必须在 8G 板卡上尝试，需先配置 swap 后再启动 llama-server。
+
 **1. 安装 llama-server：**
 
 ```bash
@@ -113,6 +115,8 @@ curl http://127.0.0.1:8063/health
 
 Zipformer CTC 是轻量级流式 ASR 模型，适合实时识别场景。
 
+当前 Zipformer 后端在 K3 + SpaceMIT EP 下需要临时禁用 `Conv` 算子，用于规避现阶段 SpaceMIT EP 侧兼容问题。后续 bug 修复后，该环境变量可移除。
+
 **手动下载：**
 
 ```bash
@@ -125,6 +129,7 @@ tar -xzf zipformer.tar.gz
 **使用：**
 
 ```bash
+export SPACEMIT_EP_DISABLE_OP_TYPE_FILTER="Conv"
 ./build/bin/asr_file_demo audio.wav --engine zipformer
 ```
 
@@ -165,6 +170,13 @@ mm
 
 ```bash
 asr_file_demo ~/.cache/models/assets/audio/001_zh_daily_weather.wav
+```
+
+**C++ 文件识别（Zipformer）：**
+
+```bash
+export SPACEMIT_EP_DISABLE_OP_TYPE_FILTER="Conv"
+asr_file_demo ~/.cache/models/assets/audio/001_zh_daily_weather.wav --engine zipformer
 ```
 
 **C++ 文件识别（Qwen3-ASR，需先启动 llama-server）：**
@@ -210,6 +222,10 @@ make -j$(nproc)
 
 # SenseVoice（默认）
 ./bin/asr_file_demo ~/.cache/models/assets/audio/001_zh_daily_weather.wav
+
+# Zipformer（K3 + SpaceMIT EP 下临时禁用 Conv）
+export SPACEMIT_EP_DISABLE_OP_TYPE_FILTER="Conv"
+./bin/asr_file_demo ~/.cache/models/assets/audio/001_zh_daily_weather.wav --engine zipformer
 
 # Qwen3-ASR（需先启动 llama-server，见 2.2.2）
 ./bin/asr_file_demo ~/.cache/models/assets/audio/001_zh_daily_weather.wav --engine qwen3-asr
@@ -301,7 +317,14 @@ target_include_directories(your_target PRIVATE ${ASR_SOURCE_DIR}/include)
 
 ## 4. 常见问题
 
-暂无。如有问题可提交 Issue。
+| 现象 | 可能原因 | 处理 |
+| --- | --- | --- |
+| 首次识别很慢 | 模型加载和 warmup 被计入首次运行 | 以第二次及之后结果评估性能。 |
+| 识别文本为空或很短 | 输入音频过短、静音或采样率不匹配 | 用 `audio_demo play` 回放，确认 WAV 是 16kHz 有声内容。 |
+| 流式采集报设备错误 | 默认输入设备不符合预期 | 先运行 `asr_stream_demo -l`，再用 `-i <id>` 指定设备。 |
+| Zipformer 报 SpaceMIT EP/Conv 相关错误 | 当前 K3 + SpaceMIT EP 下 `Conv` 算子存在临时兼容问题 | 运行前设置 `SPACEMIT_EP_DISABLE_OP_TYPE_FILTER="Conv"`。 |
+| Qwen3-ASR 调用失败 | `llama-server` 未启动或 endpoint 不正确 | 用 `curl http://127.0.0.1:8063/health` 确认服务状态。 |
+| Qwen3-ASR 启动失败或被 kill | 8G 内存板卡可能内存不足 | 检查系统内存；如必须在 8G 板卡上运行，先配置 swap 后再启动 `llama-server`。 |
 
 ## 5. 版本与发布
 
@@ -309,7 +332,7 @@ target_include_directories(your_target PRIVATE ${ASR_SOURCE_DIR}/include)
 
 | 版本   | 说明 |
 | ------ | ---- |
-| 0.1.0  | 提供 C++ / Python 接口，支持 SenseVoice、文件/内存阻塞识别与流式识别。 |
+| 0.1.0  | 提供 C++ / Python 接口，支持 SenseVoice、Zipformer CTC、Qwen3-ASR，文件/内存阻塞识别与流式识别。 |
 
 ## 6. 贡献方式
 

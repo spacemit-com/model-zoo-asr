@@ -368,9 +368,9 @@ def main():
                         help='录音时长秒数 (默认: 30.0)')
     parser.add_argument('--model-dir', '-m', default='~/.cache/models/asr/sensevoice',
                         help='模型目录 (默认: ~/.cache/models/asr/sensevoice)')
-    parser.add_argument('--language', default='zh',
+    parser.add_argument('--language', default='auto',
                         choices=['zh', 'en', 'ja', 'ko', 'yue', 'auto'],
-                        help='识别语言 (默认: zh)')
+                        help='识别语言 (默认: auto)')
     parser.add_argument('--flush', '-f', type=float, default=3.0,
                         help='Flush 间隔秒数 (默认: 3.0)')
     parser.add_argument('--provider', '-p', default='spacemit',

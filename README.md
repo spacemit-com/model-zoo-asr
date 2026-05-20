@@ -283,7 +283,7 @@ python python/examples/asr_stream_demo.py --duration 5 --channels 2
 using namespace SpacemiT;
 
 AsrConfig config = AsrConfig::Preset("sensevoice");
-config.language = "zh";
+config.language = "auto";
 config.punctuation = true;
 auto engine = std::make_shared<AsrEngine>(config);
 

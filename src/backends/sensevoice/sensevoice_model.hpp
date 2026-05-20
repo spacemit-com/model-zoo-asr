@@ -61,7 +61,7 @@ public:
         int sample_rate = 16000;        ///< Expected audio sample rate
         int num_threads = 2;            ///< Number of inference threads
 
-        std::string language = "zh";    ///< Language code: zh, en, ja, ko, yue, auto
+        std::string language = "auto";  ///< Language code: zh, en, ja, ko, yue, auto
         bool use_itn = true;           ///< Enable Inverse Text Normalization
         std::string provider = "spacemit";  ///< "cpu" or "spacemit"
     };

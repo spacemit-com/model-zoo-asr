@@ -64,7 +64,7 @@ struct ASRConfig {
     // 语言配置
     // -------------------------------------------------------------------------
 
-    Language language = Language::ZH;
+    Language language = Language::AUTO;
     std::vector<Language> language_hints = {Language::ZH, Language::EN};  // 多语言提示
 
     // -------------------------------------------------------------------------

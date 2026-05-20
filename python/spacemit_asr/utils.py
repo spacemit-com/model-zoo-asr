@@ -16,7 +16,7 @@ from .engine import Engine, Config, Language
 
 def recognize_file(
     file_path: Union[str, Path],
-    language: Language = Language.ZH,
+    language: Language = Language.AUTO,
     model_dir: str = "~/.cache/models/asr/sensevoice",
 ) -> str:
     """
@@ -45,7 +45,7 @@ def recognize_file(
 def recognize_audio(
     audio: np.ndarray,
     sample_rate: int = 16000,
-    language: Language = Language.ZH,
+    language: Language = Language.AUTO,
     model_dir: str = "~/.cache/models/asr/sensevoice",
 ) -> str:
     """

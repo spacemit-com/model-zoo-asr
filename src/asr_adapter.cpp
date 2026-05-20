@@ -172,7 +172,7 @@ struct AsrEngine::Impl {
         if (lang == "ko" || lang == "KO") return asr::Language::KO;
         if (lang == "yue" || lang == "YUE") return asr::Language::YUE;
         if (lang == "auto" || lang == "AUTO") return asr::Language::AUTO;
-        return asr::Language::ZH;  // 默认中文
+        return asr::Language::AUTO;
     }
 
     // 语言枚举转字符串
@@ -361,8 +361,7 @@ AsrEngine::AsrEngine(const std::string& engine, const std::string& model_dir)
         config = asr::ASRConfig::sensevoice(dir);
     }
 
-    // 设置默认语言为中文
-    config.language = asr::Language::ZH;
+    config.language = asr::Language::AUTO;
 
     // 初始化引擎
     auto err = impl_->engine->initialize(config);
@@ -579,10 +578,9 @@ std::shared_ptr<RecognitionResult> AsrEngine::Recognize(
         return nullptr;
     }
 
-    (void)sample_rate;  // TODO(spacemit): 支持重采样
-
     // 调用内部引擎识别
-    auto internal_result = impl_->engine->recognize(audio.data(), audio.size());
+    auto chunk = asr::AudioChunk::fromPCM16(audio.data(), audio.size(), sample_rate, 1);
+    auto internal_result = impl_->engine->recognize(chunk);
 
     // 更新缓存
     {
@@ -606,10 +604,9 @@ std::shared_ptr<RecognitionResult> AsrEngine::Recognize(
         return nullptr;
     }
 
-    (void)sample_rate;  // TODO(spacemit): 支持重采样
-
     // 调用内部引擎识别
-    auto internal_result = impl_->engine->recognize(audio.data(), audio.size());
+    auto chunk = asr::AudioChunk::fromPCMFloat(audio.data(), audio.size(), sample_rate, 1);
+    auto internal_result = impl_->engine->recognize(chunk);
 
     // 更新缓存
     {

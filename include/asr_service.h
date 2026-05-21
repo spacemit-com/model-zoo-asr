@@ -30,7 +30,7 @@ namespace SpacemiT {
 struct AsrConfig {
     std::string engine = "sensevoice";
     std::string model_dir;
-    std::string language = "zh";
+    std::string language = "auto";
     bool punctuation = true;
     int sample_rate = 16000;
     std::string provider = "spacemit";  // "cpu" or "spacemit"

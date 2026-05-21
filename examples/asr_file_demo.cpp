@@ -34,6 +34,28 @@ struct FileResult {
     std::string text;
 };
 
+class ErrorCaptureCallback : public SpacemiT::AsrEngineCallback {
+public:
+    void Clear() {
+        last_error_.clear();
+    }
+
+    const std::string& LastError() const {
+        return last_error_;
+    }
+
+    void OnError(std::shared_ptr<SpacemiT::RecognitionResult> result) override {
+        if (result && !result->GetText().empty()) {
+            last_error_ = result->GetText();
+        } else {
+            last_error_ = "unknown ASR error";
+        }
+    }
+
+private:
+    std::string last_error_;
+};
+
 void printUsage(const char* program) {
     std::cout << "Usage: " << program
         << " <audio1.wav> [audio2.wav ...] [OPTIONS]"
@@ -130,7 +152,7 @@ int main(int argc, char* argv[]) {
 
     std::cout << ">>> 创建 ASR 引擎 (" << engine_name << ")..." << std::endl;
     SpacemiT::AsrConfig config = SpacemiT::AsrConfig::Preset(engine_name);
-    config.language = "zh";
+    config.language = "auto";
     config.punctuation = true;
 
     if (engine_name == "qwen3-asr") {
@@ -168,6 +190,9 @@ int main(int argc, char* argv[]) {
         std::cerr << "引擎初始化失败!" << std::endl;
         return 1;
     }
+
+    auto error_callback = std::make_shared<ErrorCaptureCallback>();
+    engine->SetCallback(error_callback);
 
     auto cfg = engine->GetConfig();
     std::cout << "引擎类型: " << cfg.engine << std::endl;
@@ -221,6 +246,7 @@ int main(int argc, char* argv[]) {
             std::cout << "----------------------------------------" << std::endl;
             std::cout << "[" << (i + 1) << "/" << audio_files.size() << "] " << file << std::endl;
 
+            error_callback->Clear();
             auto result = engine->Call(file);
 
             if (result && !result->IsEmpty()) {
@@ -237,6 +263,8 @@ int main(int argc, char* argv[]) {
                 std::cout << "音频: " << std::fixed << std::setprecision(0) << fr.audio_ms << " ms"
                     << "  处理: " << fr.process_ms << " ms"
                     << "  RTF: " << std::setprecision(3) << fr.rtf << std::endl;
+            } else if (!error_callback->LastError().empty()) {
+                std::cerr << "识别失败: " << error_callback->LastError() << std::endl;
             } else {
                 std::cerr << "识别失败或未检测到语音" << std::endl;
             }
@@ -283,4 +311,3 @@ int main(int argc, char* argv[]) {
     std::cout << std::endl << "Done." << std::endl;
     _Exit(0);
 }
-

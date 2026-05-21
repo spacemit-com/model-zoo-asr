@@ -19,9 +19,9 @@ def main():
     parser.add_argument('file', nargs='?', help='要识别的音频文件 (16kHz WAV)')
     parser.add_argument('--model-dir', '-m', default='~/.cache/models/asr/sensevoice',
                         help='模型目录 (默认: ~/.cache/models/asr/sensevoice)')
-    parser.add_argument('--language', '-l', default='zh',
+    parser.add_argument('--language', '-l', default='auto',
                         choices=['zh', 'en', 'ja', 'ko', 'yue', 'auto'],
-                        help='识别语言 (默认: zh)')
+                        help='识别语言 (默认: auto)')
     parser.add_argument('--list-backends', action='store_true',
                         help='列出可用后端')
     parser.add_argument('--provider', '-p', default='spacemit',

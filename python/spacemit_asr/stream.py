@@ -180,7 +180,7 @@ class MicrophoneStream:
 
     def __init__(
         self,
-        language: Language = Language.ZH,
+        language: Language = Language.AUTO,
         model_dir: str = "~/.cache/models/asr/sensevoice",
         device_index: int = -1,
         input_sample_rate: int = 48000,

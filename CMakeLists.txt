@@ -74,35 +74,9 @@ endif()
 pkg_check_modules(SAMPLERATE samplerate)
 
 # kaldi-native-fbank (for Zipformer feature extraction)
-# Force static build so the library is linked into _spacemit_asr.so directly,
-# eliminating the runtime dependency on libkaldi-native-fbank-core.so
-include(FetchContent)
-set(KALDI_NATIVE_FBANK_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-set(KALDI_NATIVE_FBANK_BUILD_PYTHON OFF CACHE BOOL "" FORCE)
-set(_SAVED_BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS})
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-FetchContent_Declare(
-    kaldi_native_fbank
-    GIT_REPOSITORY https://github.com/csukuangfj/kaldi-native-fbank
-    GIT_TAG master
-)
-FetchContent_MakeAvailable(kaldi_native_fbank)
-set(BUILD_SHARED_LIBS ${_SAVED_BUILD_SHARED_LIBS} CACHE BOOL "" FORCE)
-set(KALDI_FBANK_INCLUDE_DIRS
-    ${kaldi_native_fbank_SOURCE_DIR}
-    ${kaldi_native_fbank_SOURCE_DIR}/kaldi-native-fbank/csrc
-)
-
-foreach(_knf_pic_target
-        kaldi-native-fbank-core
-        kissfft-float
-        kissfft-double
-        kissfft-int16_t
-        kissfft)
-    if(TARGET ${_knf_pic_target})
-        set_target_properties(${_knf_pic_target} PROPERTIES POSITION_INDEPENDENT_CODE ON)
-    endif()
-endforeach()
+# gitee mirror 优先 + GitHub 回退; 内部 kissfft 预下到 ${CMAKE_BINARY_DIR}/
+# 跳过 knf 自带的 FetchContent GitHub 访问. 详见 cmake/kaldi_native_fbank.cmake.
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/kaldi_native_fbank.cmake)
 
 # -------------------------------------------------------
 # Fetch ASR Models

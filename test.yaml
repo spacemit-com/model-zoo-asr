@@ -1,0 +1,20 @@
+module: components/model_zoo/asr
+
+tests:
+  - name: asr-config-contract
+    description: Verifies ASR presets, config builders, validation, and audio chunk metadata without loading models.
+    category: functional
+    scopes: [pr]
+    timeout_s: 120
+    workdir: sdk
+    command: |
+      bash components/model_zoo/asr/tests/test_config_contract.sh
+
+  - name: asr-invalid-config-error-path
+    description: Verifies unknown presets and invalid ASR configs fail with explicit errors.
+    category: functional
+    scopes: [pr]
+    timeout_s: 120
+    workdir: sdk
+    command: |
+      bash components/model_zoo/asr/tests/test_invalid_config_error_path.sh

@@ -235,7 +235,7 @@ export SPACEMIT_EP_DISABLE_OP_TYPE_FILTER="Conv"
 
 ```bash
 cd /path/to/asr
-cmake --build build --target stt-install-python   # 或设置 PYTHONPATH
+cmake --build build --target asr-install-python   # 或设置 PYTHONPATH
 python python/examples/asr_file_demo.py ~/.cache/models/assets/audio/001_zh_daily_weather.wav
 ```
 
@@ -268,15 +268,15 @@ python python/examples/asr_stream_demo.py --duration 5 --channels 2
 | 产物 | 说明 |
 | ---- | ---- |
 | `include/asr_service.h` | **C++ API 头文件**，应用侧只需包含此头文件并链接下方库即可调用 |
-| `build/lib/libstt.a` | C++ 核心库，链接时使用 |
+| `build/lib/libasr.a` | C++ 核心库，链接时使用 |
 | `build/lib/libsensevoice.a` | SenseVoice 后端库，链接时使用 |
-| `build/python/spacemit_asr/` | Python 包，`cmake --build build --target stt-install-python` 安装后 `import spacemit_asr` |
+| `build/python/spacemit_asr/` | Python 包，`cmake --build build --target asr-install-python` 安装后 `import spacemit_asr` |
 
 示例可执行文件（非集成必需）：`build/bin/asr_file_demo`、`build/bin/asr_stream_demo`（SDK 默认开启，独立编译需 `-DBUILD_STREAM_DEMO=ON`）。运行与验证步骤见 [2.4.1](#241-在-sdk-中验证) 或 [2.4.2](#242-独立构建下验证)。
 
 ### 3.2. API 使用
 
-**C++**：头文件 `include/asr_service.h` 为唯一 API 入口，实现为 PIMPL，无额外依赖。在业务代码中 `#include "asr_service.h"`，链接 `libstt.a` 与 `libsensevoice.a`（及 libsndfile 等），即可使用。
+**C++**：头文件 `include/asr_service.h` 为唯一 API 入口，实现为 PIMPL，无额外依赖。在业务代码中 `#include "asr_service.h"`，链接 `libasr.a` 与 `libsensevoice.a`（及 libsndfile 等），即可使用。兼容旧工程时仍安装 `libstt.a`。
 
 ```cpp
 #include "asr_service.h"
@@ -307,11 +307,11 @@ with spacemit_asr.Engine() as engine:
     print(result.text, result.rtf)
 ```
 
-**CMake 集成**：将本组件作为子目录引入，并链接 `stt`、包含头文件路径即可。
+**CMake 集成**：将本组件作为子目录引入，并链接 `asr`、包含头文件路径即可。
 
 ```cmake
-add_subdirectory(asr)   # 或 stt，以实际子目录名为准
-target_link_libraries(your_target PRIVATE stt)
+add_subdirectory(asr)
+target_link_libraries(your_target PRIVATE asr)
 target_include_directories(your_target PRIVATE ${ASR_SOURCE_DIR}/include)
 ```
 

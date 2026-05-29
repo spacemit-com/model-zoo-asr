@@ -1,4 +1,4 @@
-# STT API
+# ASR API
 
 离线语音识别框架，支持 C++ 和 Python。
 

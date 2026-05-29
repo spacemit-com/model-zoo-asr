@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(STT VERSION 1.0.0 LANGUAGES C CXX)
+project(ASR VERSION 1.0.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -154,9 +154,9 @@ set_target_properties(zipformer PROPERTIES
 )
 
 # -------------------------------------------------------
-# STT Framework Library
+# ASR Framework Library
 # -------------------------------------------------------
-set(STT_SOURCES
+set(ASR_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/model_downloader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/asr_engine.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/sensevoice/sensevoice_backend.cpp
@@ -166,9 +166,10 @@ set(STT_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/asr_presets.cpp
 )
 
-add_library(stt STATIC ${STT_SOURCES})
+add_library(asr STATIC ${ASR_SOURCES})
+add_library(stt ALIAS asr)
 
-target_include_directories(stt PUBLIC
+target_include_directories(asr PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CURL_INCLUDE_DIRS}
@@ -176,11 +177,11 @@ target_include_directories(stt PUBLIC
 
 # Conditionally add resampler include
 if(BUILD_STREAM_DEMO)
-    target_include_directories(stt PUBLIC ${AUDIO_INC_DIR})
-    target_link_libraries(stt PUBLIC ${AUDIO_RESAMPLER_LIB} ${SAMPLERATE_LIBRARIES})
+    target_include_directories(asr PUBLIC ${AUDIO_INC_DIR})
+    target_link_libraries(asr PUBLIC ${AUDIO_RESAMPLER_LIB} ${SAMPLERATE_LIBRARIES})
 endif()
 
-target_link_libraries(stt
+target_link_libraries(asr
     PUBLIC sensevoice
     PUBLIC zipformer
     PUBLIC ${SNDFILE_LIBRARIES}
@@ -188,11 +189,11 @@ target_link_libraries(stt
     PRIVATE pthread
 )
 
-target_link_directories(stt PRIVATE ${CURL_LIBRARY_DIRS})
+target_link_directories(asr PRIVATE ${CURL_LIBRARY_DIRS})
 
-target_link_directories(stt PUBLIC ${SNDFILE_LIBRARY_DIRS})
+target_link_directories(asr PUBLIC ${SNDFILE_LIBRARY_DIRS})
 
-set_target_properties(stt PROPERTIES
+set_target_properties(asr PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
 )
 
@@ -200,15 +201,16 @@ set_target_properties(sensevoice PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
 )
 
-message(STATUS "STT Framework library enabled")
+message(STATUS "ASR Framework library enabled")
 
 # -------------------------------------------------------
 # Install rules
 # -------------------------------------------------------
-install(TARGETS stt sensevoice zipformer
+install(TARGETS asr sensevoice zipformer
     ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib
 )
+install(FILES $<TARGET_FILE:asr> DESTINATION lib RENAME libstt.a)
 install(FILES include/asr_service.h DESTINATION include)
 
 if(TARGET kaldi-native-fbank-core)
@@ -242,7 +244,7 @@ target_include_directories(asr_file_demo PRIVATE
 )
 
 target_link_libraries(asr_file_demo
-    PRIVATE stt
+    PRIVATE asr
     PRIVATE ${SNDFILE_LIBRARIES}
     PRIVATE pthread
     PRIVATE m
@@ -296,7 +298,7 @@ if(BUILD_STREAM_DEMO)
     )
 
     target_link_libraries(asr_stream_demo
-        PRIVATE stt
+        PRIVATE asr
         PRIVATE ${SPACEMIT_AUDIO_LIB}
         PRIVATE ${AUDIO_RESAMPLER_LIB}
         PRIVATE ${PORTAUDIO_LIBRARIES}
@@ -373,7 +375,7 @@ if(BUILD_PYTHON_BINDINGS)
             ${CMAKE_CURRENT_SOURCE_DIR}/src
         )
 
-        target_link_libraries(_spacemit_asr PRIVATE stt)
+        target_link_libraries(_spacemit_asr PRIVATE asr)
 
         set_target_properties(_spacemit_asr PROPERTIES
             LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/python
@@ -391,13 +393,17 @@ if(BUILD_PYTHON_BINDINGS)
         # Install target for pip
         install(TARGETS _spacemit_asr LIBRARY DESTINATION .)
 
-        # Custom target: stt-install-python (copy all files to virtualenv site-packages)
-        add_custom_target(stt-install-python
+        # Custom target: install Python package into the active environment.
+        add_custom_target(asr-install-python
             COMMAND ${CMAKE_COMMAND} -E remove_directory ${PYTHON_SITE_PACKAGES}/spacemit_asr
             COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/python/spacemit_asr ${PYTHON_SITE_PACKAGES}/spacemit_asr
             COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:_spacemit_asr> ${PYTHON_SITE_PACKAGES}/spacemit_asr/
             DEPENDS _spacemit_asr
             COMMENT "Installing spacemit_asr to ${PYTHON_SITE_PACKAGES}/spacemit_asr/"
+        )
+        add_custom_target(stt-install-python
+            DEPENDS asr-install-python
+            COMMENT "Compatibility alias for asr-install-python"
         )
     else()
         message(STATUS "Python bindings disabled (pybind11 not found)")
@@ -409,7 +415,7 @@ endif()
 # Summary
 # -------------------------------------------------------
 message(STATUS "")
-message(STATUS "=== STT Build Configuration ===")
+message(STATUS "=== ASR Build Configuration ===")
 message(STATUS "  BUILD_STREAM_DEMO:      ${BUILD_STREAM_DEMO}")
 message(STATUS "  BUILD_PYTHON_BINDINGS:  ${BUILD_PYTHON_BINDINGS}")
 message(STATUS "")

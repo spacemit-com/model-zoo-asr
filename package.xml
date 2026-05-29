@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="3">
-  <name>stt</name>
+  <name>asr</name>
   <version>0.1.0</version>
   <description>Speech-to-text inference using ONNX Runtime</description>
   <depend>audio</depend>

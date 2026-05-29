@@ -38,7 +38,7 @@ def main():
     except ImportError as e:
         print("错误: 无法导入 spacemit_asr 模块")
         print("请确保已设置 PYTHONPATH:")
-        print("  export PYTHONPATH=/path/to/stt/build/python:/path/to/stt/python")
+        print("  export PYTHONPATH=/path/to/asr/build/python:/path/to/asr/python")
         print(f"\n详细错误: {e}")
         sys.exit(1)
 

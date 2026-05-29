@@ -6,7 +6,7 @@ ASR 流式识别示例 - 边录边识别 (定时 flush)
 音频采集在独立进程中运行，通过 multiprocessing.Queue 传递数据。
 
 依赖:
-    1. spacemit_asr 模块 (stt/build/python)
+    1. spacemit_asr 模块 (asr/build/python)
     2. spacemit_audio 模块 (audio/python)
 
 编译 audio 组件:
@@ -35,7 +35,7 @@ try:
 except ImportError as e:
     print("错误: 无法导入 spacemit_asr 模块")
     print("请确保已设置 PYTHONPATH:")
-    print("  export PYTHONPATH=/path/to/stt/build/python:/path/to/stt/python")
+    print("  export PYTHONPATH=/path/to/asr/build/python:/path/to/asr/python")
     print(f"\n详细错误: {e}")
     sys.exit(1)
 

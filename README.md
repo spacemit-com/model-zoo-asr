@@ -64,7 +64,7 @@ tar -xzf sensevoice.tar.gz
 
 Qwen3-ASR 通过 llama-server 提供服务，需要安装 llama.cpp 工具包并下载模型。
 
-注意：Qwen3-ASR 默认不建议在 8G 内存板卡上直接运行，启动 llama-server 时可能因内存不足失败或被系统 kill。建议使用更大内存配置；如必须在 8G 板卡上尝试，需先配置 swap 后再启动 llama-server。
+注意：Qwen3-ASR 模型默认上下文较大，未限制上下文时在 8G 内存板卡上启动 llama-server 可能因内存不足失败或被系统 kill。下面示例通过 `-c 4096` 降低 KV cache 内存占用；如仍内存不足，建议配置 swap 或使用更大内存配置。
 
 **1. 安装 llama-server：**
 
@@ -97,12 +97,14 @@ llama-server \
     -m ~/.cache/models/asr/qwen3asr/qwen3-asr-0.6B-dynq-q40/Qwen3-ASR-0.6B-text-q40.gguf \
     --media-backend smt \
     --smt-config-dir ~/.cache/models/asr/qwen3asr/qwen3-asr-0.6B-dynq-q40/ \
-    --host 127.0.0.1 --port 8063 -t 4
+    --host 127.0.0.1 --port 8063 \
+    -t 4 -c 4096
 ```
 
 关键参数说明：
 - `--media-backend smt`：启用 SpacemiT 媒体后端（处理音频输入）
 - `--smt-config-dir`：指定包含 ONNX 音频编码器的目录
+- `-c 4096`：限制 llama.cpp 上下文长度，降低 8G 板卡上的 KV cache 内存占用；长音频可按需调大。
 
 **4. 验证服务：**
 

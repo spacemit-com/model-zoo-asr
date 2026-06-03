@@ -377,9 +377,16 @@ if(BUILD_PYTHON_BINDINGS)
 
         target_link_libraries(_spacemit_asr PRIVATE asr)
 
-        set_target_properties(_spacemit_asr PROPERTIES
-            LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/python
-        )
+        set(ASR_PYTHON_BUILD_PACKAGE_DIR ${CMAKE_BINARY_DIR}/python/spacemit_asr)
+        file(MAKE_DIRECTORY ${ASR_PYTHON_BUILD_PACKAGE_DIR})
+        file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/python/spacemit_asr/
+             DESTINATION ${ASR_PYTHON_BUILD_PACKAGE_DIR})
+
+        if(NOT CMAKE_LIBRARY_OUTPUT_DIRECTORY)
+            set_target_properties(_spacemit_asr PROPERTIES
+                LIBRARY_OUTPUT_DIRECTORY ${ASR_PYTHON_BUILD_PACKAGE_DIR}
+            )
+        endif()
 
         message(STATUS "Python bindings enabled (_spacemit_asr module for Python ${Python3_VERSION})")
 

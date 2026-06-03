@@ -377,8 +377,33 @@ if(BUILD_PYTHON_BINDINGS)
 
         target_link_libraries(_spacemit_asr PRIVATE asr)
 
+        set(ASR_PYTHON_BUILD_PACKAGE_DIR ${CMAKE_BINARY_DIR}/python/spacemit_asr)
+        file(MAKE_DIRECTORY ${ASR_PYTHON_BUILD_PACKAGE_DIR})
+
+        file(GLOB ASR_PYTHON_PACKAGE_SOURCES CONFIGURE_DEPENDS
+             ${CMAKE_CURRENT_SOURCE_DIR}/python/spacemit_asr/*.py)
+        set(ASR_PYTHON_BUILD_PACKAGE_FILES)
+        foreach(ASR_PYTHON_PACKAGE_SOURCE IN LISTS ASR_PYTHON_PACKAGE_SOURCES)
+            get_filename_component(ASR_PYTHON_PACKAGE_FILE ${ASR_PYTHON_PACKAGE_SOURCE} NAME)
+            set(ASR_PYTHON_PACKAGE_OUTPUT ${ASR_PYTHON_BUILD_PACKAGE_DIR}/${ASR_PYTHON_PACKAGE_FILE})
+            add_custom_command(
+                OUTPUT ${ASR_PYTHON_PACKAGE_OUTPUT}
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        ${ASR_PYTHON_PACKAGE_SOURCE}
+                        ${ASR_PYTHON_PACKAGE_OUTPUT}
+                DEPENDS ${ASR_PYTHON_PACKAGE_SOURCE}
+                VERBATIM
+            )
+            list(APPEND ASR_PYTHON_BUILD_PACKAGE_FILES ${ASR_PYTHON_PACKAGE_OUTPUT})
+        endforeach()
+
+        add_custom_target(spacemit_asr_python_package ALL
+            DEPENDS ${ASR_PYTHON_BUILD_PACKAGE_FILES}
+        )
+        add_dependencies(_spacemit_asr spacemit_asr_python_package)
+
         set_target_properties(_spacemit_asr PROPERTIES
-            LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/python
+            LIBRARY_OUTPUT_DIRECTORY ${ASR_PYTHON_BUILD_PACKAGE_DIR}
         )
 
         message(STATUS "Python bindings enabled (_spacemit_asr module for Python ${Python3_VERSION})")

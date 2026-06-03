@@ -66,6 +66,7 @@ class AudioStream:
         self._callback = None
         self._capture = None
         self._is_open = False
+        self._is_started = False
 
     def __del__(self):
         try:
@@ -107,23 +108,26 @@ class AudioStream:
         if self._is_open and self._capture:
             self._capture.stop()
             self._capture = None
+            self._is_started = False
             self._is_open = False
 
     def start(self) -> bool:
         if self._capture:
             self._capture.start()
+            self._is_started = True
             return True
         return False
 
     def stop(self) -> bool:
         if self._capture:
             self._capture.stop()
+            self._is_started = False
             return True
         return False
 
     @property
     def is_running(self) -> bool:
-        return self._capture is not None and self._is_open
+        return self._capture is not None and self._is_started
 
     @property
     def is_open(self) -> bool:

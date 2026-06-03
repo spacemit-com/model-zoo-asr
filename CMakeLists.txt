@@ -380,7 +380,13 @@ if(BUILD_PYTHON_BINDINGS)
         set(ASR_PYTHON_BUILD_PACKAGE_DIR ${CMAKE_BINARY_DIR}/python/spacemit_asr)
         file(MAKE_DIRECTORY ${ASR_PYTHON_BUILD_PACKAGE_DIR})
         file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/python/spacemit_asr/
-             DESTINATION ${ASR_PYTHON_BUILD_PACKAGE_DIR})
+             DESTINATION ${ASR_PYTHON_BUILD_PACKAGE_DIR}
+             PATTERN "__pycache__" EXCLUDE
+             PATTERN "*.pyc" EXCLUDE
+             PATTERN "*.pyo" EXCLUDE
+             PATTERN "_spacemit_asr*.so" EXCLUDE
+             PATTERN "_spacemit_asr*.dylib" EXCLUDE
+             PATTERN "_spacemit_asr*.pyd" EXCLUDE)
 
         if(NOT CMAKE_LIBRARY_OUTPUT_DIRECTORY)
             set_target_properties(_spacemit_asr PROPERTIES

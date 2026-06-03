@@ -105,9 +105,15 @@ class AudioStream:
             return False
 
     def close(self):
-        if self._is_open and self._capture:
-            self._capture.stop()
-            self._capture = None
+        capture = self._capture
+        if capture:
+            try:
+                capture.stop()
+            finally:
+                self._capture = None
+                self._is_started = False
+                self._is_open = False
+        else:
             self._is_started = False
             self._is_open = False
 
@@ -120,8 +126,10 @@ class AudioStream:
 
     def stop(self) -> bool:
         if self._capture:
-            self._capture.stop()
-            self._is_started = False
+            try:
+                self._capture.stop()
+            finally:
+                self._is_started = False
             return True
         return False
 

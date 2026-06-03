@@ -379,20 +379,32 @@ if(BUILD_PYTHON_BINDINGS)
 
         set(ASR_PYTHON_BUILD_PACKAGE_DIR ${CMAKE_BINARY_DIR}/python/spacemit_asr)
         file(MAKE_DIRECTORY ${ASR_PYTHON_BUILD_PACKAGE_DIR})
-        file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/python/spacemit_asr/
-             DESTINATION ${ASR_PYTHON_BUILD_PACKAGE_DIR}
-             PATTERN "__pycache__" EXCLUDE
-             PATTERN "*.pyc" EXCLUDE
-             PATTERN "*.pyo" EXCLUDE
-             PATTERN "_spacemit_asr*.so" EXCLUDE
-             PATTERN "_spacemit_asr*.dylib" EXCLUDE
-             PATTERN "_spacemit_asr*.pyd" EXCLUDE)
 
-        if(NOT CMAKE_LIBRARY_OUTPUT_DIRECTORY)
-            set_target_properties(_spacemit_asr PROPERTIES
-                LIBRARY_OUTPUT_DIRECTORY ${ASR_PYTHON_BUILD_PACKAGE_DIR}
+        file(GLOB ASR_PYTHON_PACKAGE_SOURCES CONFIGURE_DEPENDS
+             ${CMAKE_CURRENT_SOURCE_DIR}/python/spacemit_asr/*.py)
+        set(ASR_PYTHON_BUILD_PACKAGE_FILES)
+        foreach(ASR_PYTHON_PACKAGE_SOURCE IN LISTS ASR_PYTHON_PACKAGE_SOURCES)
+            get_filename_component(ASR_PYTHON_PACKAGE_FILE ${ASR_PYTHON_PACKAGE_SOURCE} NAME)
+            set(ASR_PYTHON_PACKAGE_OUTPUT ${ASR_PYTHON_BUILD_PACKAGE_DIR}/${ASR_PYTHON_PACKAGE_FILE})
+            add_custom_command(
+                OUTPUT ${ASR_PYTHON_PACKAGE_OUTPUT}
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        ${ASR_PYTHON_PACKAGE_SOURCE}
+                        ${ASR_PYTHON_PACKAGE_OUTPUT}
+                DEPENDS ${ASR_PYTHON_PACKAGE_SOURCE}
+                VERBATIM
             )
-        endif()
+            list(APPEND ASR_PYTHON_BUILD_PACKAGE_FILES ${ASR_PYTHON_PACKAGE_OUTPUT})
+        endforeach()
+
+        add_custom_target(spacemit_asr_python_package ALL
+            DEPENDS ${ASR_PYTHON_BUILD_PACKAGE_FILES}
+        )
+        add_dependencies(_spacemit_asr spacemit_asr_python_package)
+
+        set_target_properties(_spacemit_asr PROPERTIES
+            LIBRARY_OUTPUT_DIRECTORY ${ASR_PYTHON_BUILD_PACKAGE_DIR}
+        )
 
         message(STATUS "Python bindings enabled (_spacemit_asr module for Python ${Python3_VERSION})")
 

@@ -17,6 +17,8 @@
 #include <utility>
 #include <vector>
 
+#include "audio_utils.hpp"
+
 namespace asr {
 
 // ============================================================================
@@ -407,15 +409,19 @@ ErrorInfo Qwen3ASRBackend::recognize(const AudioChunk& audio, RecognitionResult&
     if (audio_float.empty())
         return ErrorInfo::error(ErrorCode::INVALID_CONFIG, "Empty audio");
 
-    if (audio.sample_rate != config_.sample_rate)
-        return ErrorInfo::error(ErrorCode::UNSUPPORTED_SAMPLE_RATE,
-            "Expected " + std::to_string(config_.sample_rate) +
-            " Hz, got " + std::to_string(audio.sample_rate));
+    if (audio.sample_rate <= 0)
+        return ErrorInfo::error(ErrorCode::INVALID_CONFIG,
+            "Invalid sample rate: " + std::to_string(audio.sample_rate) + " Hz");
 
-    int64_t audio_ms = (audio_float.size() * 1000) / config_.sample_rate;
+    int64_t audio_ms = (audio_float.size() * 1000) / audio.sample_rate;
+
+    auto model_audio = audio_utils::normalizeSampleRate(
+        std::move(audio_float), audio.sample_rate, config_.sample_rate);
+    if (model_audio.empty())
+        return ErrorInfo::error(ErrorCode::INVALID_CONFIG, "Empty audio after resampling");
 
     std::string text;
-    auto err = transcribe(audio_float.data(), audio_float.size(),
+    auto err = transcribe(model_audio.data(), model_audio.size(),
                             config_.sample_rate, text);
     if (!err.isOk()) return err;
 
@@ -456,15 +462,19 @@ ErrorInfo Qwen3ASRBackend::recognizeFile(const std::string& file_path,
         audio = std::move(mono);
     }
 
-    if (info.samplerate != config_.sample_rate)
-        return ErrorInfo::error(ErrorCode::UNSUPPORTED_SAMPLE_RATE,
-            "Expected " + std::to_string(config_.sample_rate) +
-            " Hz, got " + std::to_string(info.samplerate));
+    if (info.samplerate <= 0)
+        return ErrorInfo::error(ErrorCode::INVALID_CONFIG,
+            "Invalid sample rate: " + std::to_string(info.samplerate) + " Hz");
 
     int64_t audio_ms = (info.frames * 1000) / info.samplerate;
 
+    auto model_audio = audio_utils::normalizeSampleRate(
+        std::move(audio), info.samplerate, config_.sample_rate);
+    if (model_audio.empty())
+        return ErrorInfo::error(ErrorCode::INVALID_CONFIG, "Empty audio after resampling");
+
     std::string text;
-    auto err = transcribe(audio.data(), audio.size(), info.samplerate, text);
+    auto err = transcribe(model_audio.data(), model_audio.size(), config_.sample_rate, text);
     if (!err.isOk()) return err;
 
     auto t1 = std::chrono::steady_clock::now();

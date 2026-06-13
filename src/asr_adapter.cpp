@@ -53,6 +53,7 @@ struct RecognitionResult::Impl {
             sentence.begin_time = s.begin_time_ms;
             sentence.end_time = s.end_time_ms;
             sentence.confidence = s.confidence;
+            sentence.emotion = s.emotion;
             sentences.push_back(std::move(sentence));
 
             // 使用最后一个句子的 is_final 状态
@@ -107,6 +108,15 @@ std::string RecognitionResult::GetText() const {
         result += s.text;
     }
     return result;
+}
+
+std::string RecognitionResult::GetEmotion() const {
+    for (const auto& s : impl_->sentences) {
+        if (!s.emotion.empty()) {
+            return s.emotion;
+        }
+    }
+    return "";
 }
 
 bool RecognitionResult::IsEmpty() const {
@@ -202,6 +212,9 @@ struct AsrEngine::Impl {
             json << "            \"begin_time\": " << s.begin_time_ms << ",\n";
             json << "            \"end_time\": " << s.end_time_ms << ",\n";
             json << "            \"is_final\": " << (s.is_final ? "true" : "false") << ",\n";
+            if (!s.emotion.empty()) {
+                json << "            \"emotion\": \"" << escapeJson(s.emotion) << "\",\n";
+            }
             json << "            \"confidence\": " << s.confidence << "\n";
             json << "        }";
             if (i < result.sentences.size() - 1) json << ",";
@@ -412,6 +425,7 @@ AsrEngine::AsrEngine(const AsrConfig& config)
     // 应用公开配置
     internal_config.language = Impl::languageFromString(config.language);
     internal_config.punctuation_enabled = config.punctuation;
+    internal_config.enable_emotion = config.enable_emotion;
     internal_config.sample_rate = config.sample_rate;
     if (!config.provider.empty()) {
         internal_config.extra_params["provider"] = config.provider;

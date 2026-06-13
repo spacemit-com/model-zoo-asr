@@ -48,6 +48,11 @@ class HotwordScorer;
  */
 class SenseVoiceModel {
 public:
+    struct RecognitionOutput {
+        std::string text;
+        std::string emotion;
+    };
+
     /**
      * @brief Model configuration
      */
@@ -117,6 +122,21 @@ public:
     std::string recognize(const float* audio, size_t length);
 
     /**
+     * @brief Recognize speech and return SenseVoice metadata.
+     * @param audio Audio samples (float, normalized to [-1, 1])
+     * @return Recognized text and optional emotion label
+     */
+    RecognitionOutput recognizeWithMetadata(const std::vector<float>& audio);
+
+    /**
+     * @brief Recognize speech and return SenseVoice metadata.
+     * @param audio Pointer to audio samples
+     * @param length Number of samples
+     * @return Recognized text and optional emotion label
+     */
+    RecognitionOutput recognizeWithMetadata(const float* audio, size_t length);
+
+    /**
      * @brief Batch recognition
      * @param audio_batch Vector of audio samples
      * @return Vector of recognized texts
@@ -181,6 +201,8 @@ private:
     void initializeLanguageMaps();
     void cleanupSession();
 
+    RecognitionOutput recognizeInternal(
+        const float* audio, size_t length, bool include_metadata);
     std::vector<int> decodeCTC(const float* logits, int seq_len, int vocab_size);
     int getLanguageId(const std::string& language);
     int getTextnormId(bool use_itn);

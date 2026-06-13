@@ -72,8 +72,9 @@ def stereo_to_mono(audio: np.ndarray, channels: int) -> np.ndarray:
 class StreamingCallback(AsrCallback):
     """流式识别回调 - 实时打印识别结果"""
 
-    def __init__(self):
+    def __init__(self, show_emotion: bool = False):
         super().__init__()
+        self.show_emotion = show_emotion
         self.final_results = []
         self.sentence_count = 0
 
@@ -87,6 +88,9 @@ class StreamingCallback(AsrCallback):
         if text:
             self.sentence_count += 1
             print(f"[句子 {self.sentence_count}]: {text}")
+            emotion = getattr(result, 'emotion', None)
+            if self.show_emotion and emotion:
+                print(f"[情绪 {self.sentence_count}]: {emotion}")
             self.final_results.append(text)
 
     def on_complete(self) -> None:
@@ -249,16 +253,20 @@ def run_streaming_recognition(args):
     asr_config = spacemit_asr.Config(args.model_dir)
     asr_config.language = lang_map[args.language]
     asr_config.punctuation_enabled = True
+    asr_config.enable_emotion = args.enable_emotion
     asr_config.provider = args.provider
 
-    print(f"ASR 配置: 语言={args.language}, provider={args.provider}")
+    print(
+        f"ASR 配置: 语言={args.language}, provider={args.provider}, "
+        f"emotion={'on' if args.enable_emotion else 'off'}"
+    )
     print(f"Flush 间隔: {args.flush}秒")
     print(f"录制时长: {args.duration}秒")
     print("\n使用 multiprocessing 避免 GIL 导致的 overrun")
     print("按 Ctrl+C 退出\n")
 
     # 创建回调
-    callback = StreamingCallback()
+    callback = StreamingCallback(show_emotion=args.enable_emotion)
 
     sentence_count = 0
     frame_count = 0
@@ -376,6 +384,8 @@ def main():
     parser.add_argument('--provider', '-p', default='spacemit',
                         choices=['cpu', 'spacemit'],
                         help='执行提供程序 (默认: spacemit)')
+    parser.add_argument('--enable-emotion', action='store_true',
+                        help='启用 SenseVoice 情绪识别 (默认关闭)')
 
     args = parser.parse_args()
 

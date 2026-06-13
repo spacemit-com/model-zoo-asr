@@ -191,6 +191,7 @@ PYBIND11_MODULE(_spacemit_asr, m) {
         .def_readonly("is_final", &asr::SentenceResult::is_final)
         .def_readonly("words", &asr::SentenceResult::words)
         .def_readonly("detected_language", &asr::SentenceResult::detected_language)
+        .def_readonly("emotion", &asr::SentenceResult::emotion)
         .def("__repr__", [](const asr::SentenceResult& s) {
             return "SentenceResult('" + s.text + "')";
         });
@@ -263,6 +264,7 @@ PYBIND11_MODULE(_spacemit_asr, m) {
         .def_readwrite("chunk_size_ms", &asr::ASRConfig::chunk_size_ms)
         .def_readwrite("return_partial_results", &asr::ASRConfig::return_partial_results)
         .def_readwrite("return_word_timestamps", &asr::ASRConfig::return_word_timestamps)
+        .def_readwrite("enable_emotion", &asr::ASRConfig::enable_emotion)
         // Performance
         .def_readwrite("timeout_ms", &asr::ASRConfig::timeout_ms)
         // Static factory methods
@@ -283,6 +285,9 @@ PYBIND11_MODULE(_spacemit_asr, m) {
         .def("without_vad", &asr::ASRConfig::withoutVAD, "Disable VAD")
         .def("with_word_timestamps", &asr::ASRConfig::withWordTimestamps,
             "Enable word timestamps")
+        .def("with_emotion", &asr::ASRConfig::withEmotion,
+            py::arg("enabled") = true,
+            "Enable emotion labels")
         .def_readwrite("extra_params", &asr::ASRConfig::extra_params,
             "Extra backend-specific parameters (e.g. provider)");
 

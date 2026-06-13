@@ -32,6 +32,7 @@ struct AsrConfig {
     std::string model_dir;
     std::string language = "auto";
     bool punctuation = true;
+    bool enable_emotion = false;
     int sample_rate = 16000;
     std::string provider = "spacemit";  // "cpu" or "spacemit"
 
@@ -53,12 +54,13 @@ struct AsrConfig {
 // Sentence
 // -----------------------------------------------------------------------------
 
-// 单句结果，时间 ms，置信度 [0,1]。
+// 单句结果，时间 ms，置信度 [0,1]。emotion 仅在后端支持时返回。
 struct Sentence {
     std::string text;
     int begin_time = 0;
     int end_time = 0;
     float confidence = 0.0f;
+    std::string emotion;
 };
 
 // -----------------------------------------------------------------------------
@@ -81,6 +83,7 @@ public:
     bool IsSentenceEnd() const;
     std::string GetRequestId() const;
     std::string GetText() const;
+    std::string GetEmotion() const;
     bool IsEmpty() const;
     int GetAudioDuration() const;
     int GetProcessingTime() const;

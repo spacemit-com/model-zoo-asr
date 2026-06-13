@@ -7,7 +7,7 @@
  * SpacemitAudioSDK 静态文件识别示例
  *
  * Usage:
- *   ./asr_file_demo <audio1.wav> [audio2.wav ...] [--model-dir DIR] [--rounds N] [--provider EP]
+ *   ./asr_file_demo <audio1.wav> [audio2.wav ...] [--model-dir DIR] [--rounds N] [--provider EP] [--enable-emotion]
  *
  * Examples:
  *   ./asr_file_demo ~/test.wav
@@ -32,6 +32,7 @@ struct FileResult {
     double process_ms;
     double rtf;
     std::string text;
+    std::string emotion;
 };
 
 class ErrorCaptureCallback : public SpacemiT::AsrEngineCallback {
@@ -63,13 +64,14 @@ void printUsage(const char* program) {
     std::cout << std::endl;
     std::cout << "Arguments:" << std::endl;
     std::cout << "  audio files   One or more WAV audio files" << std::endl;
-    std::cout << "  --engine      Engine: sensevoice | qwen3-asr (default: sensevoice)" << std::endl;
+    std::cout << "  --engine      Engine: sensevoice | zipformer | qwen3-asr (default: sensevoice)" << std::endl;
     std::cout << "  --model-dir   Path to SenseVoice model directory" << std::endl;
     std::cout << "                Default: ~/.cache/models/asr/sensevoice" << std::endl;
     std::cout << "  --rounds N    Run N rounds of recognition (default: 1)" << std::endl;
     std::cout << "  --provider    EP: cpu | spacemit (default: spacemit)" << std::endl;
     std::cout << "  --hotwords    Comma-separated hotwords (e.g. \"SpacemiT,进迭时空\")" << std::endl;
     std::cout << "  --hotword-boost  Hotword boost weight (default: 2.0)" << std::endl;
+    std::cout << "  --enable-emotion  Enable SenseVoice emotion recognition (default: off)" << std::endl;
     std::cout << "  --endpoint    Qwen3-ASR llama-server URL" << std::endl;
     std::cout << "                Default: http://127.0.0.1:8063/v1/chat/completions" << std::endl;
     std::cout << "  --model       Qwen3-ASR model tag (default: qwen3-asr)" << std::endl;
@@ -111,6 +113,7 @@ int main(int argc, char* argv[]) {
     std::string model_tag = "qwen3-asr";
     int timeout = 60;
     int rounds = 1;
+    bool enable_emotion = false;
 
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
@@ -128,6 +131,8 @@ int main(int argc, char* argv[]) {
             hotwords_str = argv[++i];
         } else if (arg == "--hotword-boost" && i + 1 < argc) {
             hotword_boost = std::stof(argv[++i]);
+        } else if (arg == "--enable-emotion") {
+            enable_emotion = true;
         } else if (arg == "--endpoint" && i + 1 < argc) {
             endpoint = argv[++i];
         } else if (arg == "--model" && i + 1 < argc) {
@@ -154,6 +159,7 @@ int main(int argc, char* argv[]) {
     SpacemiT::AsrConfig config = SpacemiT::AsrConfig::Preset(engine_name);
     config.language = "auto";
     config.punctuation = true;
+    config.enable_emotion = enable_emotion;
 
     if (engine_name == "qwen3-asr") {
         config.endpoint = endpoint;
@@ -198,6 +204,7 @@ int main(int argc, char* argv[]) {
     std::cout << "引擎类型: " << cfg.engine << std::endl;
     std::cout << "语言: " << cfg.language << std::endl;
     std::cout << "标点: " << (cfg.punctuation ? "启用" : "禁用") << std::endl;
+    std::cout << "情绪识别: " << (cfg.enable_emotion ? "启用" : "禁用") << std::endl;
     std::cout << "采样率: " << cfg.sample_rate << " Hz" << std::endl;
     if (engine_name == "qwen3-asr") {
         std::cout << "Endpoint: " << cfg.endpoint << std::endl;
@@ -254,12 +261,16 @@ int main(int argc, char* argv[]) {
                 fr.round = round + 1;
                 fr.file = file;
                 fr.text = result->GetText();
+                fr.emotion = result->GetEmotion();
                 fr.audio_ms = result->GetAudioDuration();
                 fr.process_ms = result->GetProcessingTime();
                 fr.rtf = result->GetRTF();
                 results.push_back(fr);
 
                 std::cout << "文本: " << fr.text << std::endl;
+                if (!fr.emotion.empty()) {
+                    std::cout << "情绪: " << fr.emotion << std::endl;
+                }
                 std::cout << "音频: " << std::fixed << std::setprecision(0) << fr.audio_ms << " ms"
                     << "  处理: " << fr.process_ms << " ms"
                     << "  RTF: " << std::setprecision(3) << fr.rtf << std::endl;

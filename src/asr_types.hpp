@@ -87,6 +87,7 @@ struct SentenceResult {
     bool is_final;                      // 是否为最终结果(流式模式)
     std::vector<WordResult> words;      // 词级别详情(可选)
     Language detected_language;         // 检测到的语言
+    std::string emotion;                // 情绪标签（SenseVoice SER，未知时为空）
 };
 
 // =============================================================================

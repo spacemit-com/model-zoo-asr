@@ -203,9 +203,13 @@ ErrorInfo SenseVoiceBackend::recognize(const AudioChunk& audio, RecognitionResul
     auto model_audio = trimEndpointSilence(normalized_audio);
 
     // Call SenseVoice model
-    std::string text;
+    sensevoice::SenseVoiceModel::RecognitionOutput recognition;
     try {
-        text = model_->recognize(model_audio);
+        if (config_.enable_emotion) {
+            recognition = model_->recognizeWithMetadata(model_audio);
+        } else {
+            recognition.text = model_->recognize(model_audio);
+        }
     } catch (const std::exception& e) {
         return ErrorInfo::error(ErrorCode::INFERENCE_FAILED,
             "SenseVoice inference failed", e.what());
@@ -216,7 +220,9 @@ ErrorInfo SenseVoiceBackend::recognize(const AudioChunk& audio, RecognitionResul
         end_time - start_time).count();
 
     // Build result
-    result = buildResult(text, audio_duration_ms, processing_time, true);
+    result = buildResult(
+        recognition.text, recognition.emotion, audio_duration_ms,
+        processing_time, true);
 
     // Note: Don't notify here - ASREngine handles callback notifications
     // notifyResult(result);
@@ -290,9 +296,13 @@ ErrorInfo SenseVoiceBackend::recognizeFile(const std::string& file_path,
     auto model_audio = trimEndpointSilence(normalized_audio);
 
     // Run SenseVoice model directly
-    std::string text;
+    sensevoice::SenseVoiceModel::RecognitionOutput recognition;
     try {
-        text = model_->recognize(model_audio);
+        if (config_.enable_emotion) {
+            recognition = model_->recognizeWithMetadata(model_audio);
+        } else {
+            recognition.text = model_->recognize(model_audio);
+        }
     } catch (const std::exception& e) {
         return ErrorInfo::error(ErrorCode::INFERENCE_FAILED,
             "SenseVoice inference failed", e.what());
@@ -303,7 +313,9 @@ ErrorInfo SenseVoiceBackend::recognizeFile(const std::string& file_path,
         end_time - start_time).count();
 
     // Build result
-    result = buildResult(text, audio_duration_ms, processing_time, true);
+    result = buildResult(
+        recognition.text, recognition.emotion, audio_duration_ms,
+        processing_time, true);
 
     return ErrorInfo::ok();
 }
@@ -405,9 +417,13 @@ void SenseVoiceBackend::processBufferedAudio(bool force_final) {
     auto model_audio = trimEndpointSilence(audio_buffer_);
 
     // Run SenseVoice model
-    std::string text;
+    sensevoice::SenseVoiceModel::RecognitionOutput recognition;
     try {
-        text = model_->recognize(model_audio);
+        if (config_.enable_emotion) {
+            recognition = model_->recognizeWithMetadata(model_audio);
+        } else {
+            recognition.text = model_->recognize(model_audio);
+        }
     } catch (const std::exception& e) {
         notifyError(ErrorInfo::error(ErrorCode::INFERENCE_FAILED,
             "SenseVoice inference failed", e.what()));
@@ -419,7 +435,9 @@ void SenseVoiceBackend::processBufferedAudio(bool force_final) {
         end_time - start_time).count();
 
     // Build and notify result
-    auto result = buildResult(text, audio_duration_ms, processing_time, force_final);
+    auto result = buildResult(
+        recognition.text, recognition.emotion, audio_duration_ms,
+        processing_time, force_final);
     notifyResult(result);
 
     // Clear buffer after processing
@@ -553,6 +571,7 @@ std::vector<float> SenseVoiceBackend::trimEndpointSilence(
 }
 
 RecognitionResult SenseVoiceBackend::buildResult(const std::string& text,
+                                                const std::string& emotion,
                                                 int64_t audio_duration_ms,
                                                 int64_t processing_time_ms,
                                                 bool is_final) {
@@ -566,6 +585,7 @@ RecognitionResult SenseVoiceBackend::buildResult(const std::string& text,
     sentence.confidence = 1.0f;  // SenseVoice doesn't provide confidence
     sentence.is_final = is_final;
     sentence.detected_language = config_.language;
+    sentence.emotion = config_.enable_emotion ? emotion : "";
 
     result.sentences.push_back(sentence);
     result.audio_duration_ms = audio_duration_ms;

@@ -34,6 +34,11 @@ namespace sensevoice {
  */
 class Tokenizer {
 public:
+    struct DecodeResult {
+        std::string text;
+        std::string emotion;
+    };
+
     /**
      * @brief Configuration
      */
@@ -66,6 +71,13 @@ public:
      * @return Decoded text
      */
     std::string decode(const std::vector<int>& token_ids);
+
+    /**
+     * @brief Decode token IDs to text plus SenseVoice metadata.
+     * @param token_ids Vector of token IDs
+     * @return Clean text and optional emotion label
+     */
+    DecodeResult decodeWithMetadata(const std::vector<int>& token_ids);
 
     /**
      * @brief Encode text to token IDs

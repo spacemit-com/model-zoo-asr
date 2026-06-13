@@ -33,14 +33,20 @@ class Language(Enum):
 class Config:
     """ASR Configuration"""
 
-    def __init__(self, model_dir: str = "~/.cache/models/asr/sensevoice"):
+    def __init__(
+        self,
+        model_dir: str = "~/.cache/models/asr/sensevoice",
+        enable_emotion: bool = False,
+    ):
         """
         Create ASR configuration.
 
         Args:
             model_dir: Path to SenseVoice model directory
+            enable_emotion: Whether to enable SenseVoice emotion recognition
         """
         self._config = _asr.ASRConfig.sensevoice(str(Path(model_dir).expanduser()))
+        self._config.enable_emotion = enable_emotion
         self._model_dir = model_dir
 
     @property
@@ -81,6 +87,20 @@ class Config:
         return self
 
     @property
+    def enable_emotion(self) -> bool:
+        """Get/set emotion recognition"""
+        return self._config.enable_emotion
+
+    @enable_emotion.setter
+    def enable_emotion(self, value: bool):
+        self._config.enable_emotion = value
+
+    def with_emotion(self, enabled: bool = True) -> "Config":
+        """Set emotion recognition (chainable)"""
+        self._config.enable_emotion = enabled
+        return self
+
+    @property
     def provider(self) -> str:
         """Get/set execution provider: 'cpu' or 'spacemit'"""
         return self._config.extra_params.get("provider", "spacemit")
@@ -107,6 +127,15 @@ class Result:
     def sentences(self) -> list:
         """List of sentence results"""
         return self._result.sentences
+
+    @property
+    def emotion(self) -> Optional[str]:
+        """First non-empty sentence emotion label, if provided by the backend"""
+        for sentence in self._result.sentences:
+            emotion = getattr(sentence, "emotion", "")
+            if emotion:
+                return emotion
+        return None
 
     @property
     def audio_duration_ms(self) -> int:

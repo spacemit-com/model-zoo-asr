@@ -29,6 +29,8 @@ def main():
                         help='执行提供程序 (默认: spacemit)')
     parser.add_argument('--rounds', '-r', type=int, default=1,
                         help='重复识别轮次 (默认: 1)')
+    parser.add_argument('--enable-emotion', action='store_true',
+                        help='启用 SenseVoice 情绪识别 (默认关闭)')
 
     args = parser.parse_args()
 
@@ -69,12 +71,14 @@ def main():
     config = spacemit_asr.Config(args.model_dir)
     config.language = lang_map[args.language]
     config.punctuation_enabled = True
+    config.enable_emotion = args.enable_emotion
     config.provider = args.provider
 
     # 识别
     print(f"\n文件: {args.file}")
     print(f"语言: {args.language}")
     print(f"Provider: {args.provider}")
+    print(f"情绪识别: {'启用' if args.enable_emotion else '禁用'}")
     print("正在识别...\n")
 
     with spacemit_asr.Engine(config) as engine:
@@ -94,6 +98,8 @@ def main():
             total_audio_ms += result.audio_duration_ms
             total_proc_ms += result.processing_time_ms
             print(f"[轮次 {round_idx + 1}/{args.rounds}] {result.text}")
+            if result.emotion:
+                print(f"情绪: {result.emotion}")
 
         if args.rounds > 1:
             print(f"\n--- 汇总 ({args.rounds} 轮) ---")

@@ -207,9 +207,24 @@ std::string SenseVoiceModel::recognize(const std::vector<float>& audio) {
 }
 
 std::string SenseVoiceModel::recognize(const float* audio, size_t length) {
+    return recognizeInternal(audio, length, false).text;
+}
+
+SenseVoiceModel::RecognitionOutput SenseVoiceModel::recognizeWithMetadata(
+    const std::vector<float>& audio) {
+    return recognizeWithMetadata(audio.data(), audio.size());
+}
+
+SenseVoiceModel::RecognitionOutput SenseVoiceModel::recognizeWithMetadata(
+    const float* audio, size_t length) {
+    return recognizeInternal(audio, length, true);
+}
+
+SenseVoiceModel::RecognitionOutput SenseVoiceModel::recognizeInternal(
+    const float* audio, size_t length, bool include_metadata) {
     if (!initialized_) {
         std::cerr << "[SenseVoiceModel] Model not initialized" << std::endl;
-        return "";
+        return {};
     }
 
     try {
@@ -221,7 +236,7 @@ std::string SenseVoiceModel::recognize(const float* audio, size_t length) {
         auto fe_end = std::chrono::high_resolution_clock::now();
 
         if (features.empty()) {
-            return "";
+            return {};
         }
 
         size_t feature_dim = features[0].size();
@@ -279,7 +294,14 @@ std::string SenseVoiceModel::recognize(const float* audio, size_t length) {
         int vocab_size = static_cast<int>(logits_shape[2]);
 
         auto token_ids = decodeCTC(logits, out_seq_len, vocab_size);
-        std::string result = tokenizer_->decode(token_ids);
+        RecognitionOutput decoded;
+        if (include_metadata) {
+            auto metadata = tokenizer_->decodeWithMetadata(token_ids);
+            decoded.text = metadata.text;
+            decoded.emotion = metadata.emotion;
+        } else {
+            decoded.text = tokenizer_->decode(token_ids);
+        }
         auto dec_end = std::chrono::high_resolution_clock::now();
 
         auto total_end = std::chrono::high_resolution_clock::now();
@@ -328,10 +350,10 @@ std::string SenseVoiceModel::recognize(const float* audio, size_t length) {
                 << last_stats_.audio_duration_ms / 1000.0 << "s, RTF: "
                 << std::setprecision(3) << last_stats_.rtf << std::endl;
 
-        return result;
+        return {decoded.text, decoded.emotion};
     } catch (const std::exception& e) {
         std::cerr << "[SenseVoiceModel] Inference error: " << e.what() << std::endl;
-        return "";
+        return {};
     }
 }
 

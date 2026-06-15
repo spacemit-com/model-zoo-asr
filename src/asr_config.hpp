@@ -99,6 +99,7 @@ struct ASRConfig {
     int chunk_size_ms = 100;                    // 每块音频时长 (毫秒)
     bool return_partial_results = true;         // 返回中间结果
     bool return_word_timestamps = false;        // 返回词级别时间戳
+    bool enable_emotion = false;                // 启用 SenseVoice 情绪识别（默认关闭）
     int max_audio_duration_s = 60;              // 最大音频时长 (秒)
 
     // -------------------------------------------------------------------------
@@ -178,6 +179,13 @@ struct ASRConfig {
     ASRConfig withWordTimestamps() const {
         ASRConfig config = *this;
         config.return_word_timestamps = true;
+        return config;
+    }
+
+    /// @brief 启用/关闭情绪标签输出
+    ASRConfig withEmotion(bool enabled = true) const {
+        ASRConfig config = *this;
+        config.enable_emotion = enabled;
         return config;
     }
 };

@@ -77,6 +77,10 @@ public:
         if (!text.empty()) {
             if (is_final) {
                 std::cout << "    [回调] 最终结果: " << text << std::endl;
+                const std::string emotion = result->GetEmotion();
+                if (!emotion.empty()) {
+                    std::cout << "    [回调] 情绪: " << emotion << std::endl;
+                }
 
                 // 显示详细信息（仅最终结果）
                 auto sentences = result->GetSentences();
@@ -170,6 +174,7 @@ void printUsage(const char* program) {
     std::cout << "  -f, --flush <N>    Flush 间隔秒数 (默认 3)" << std::endl;
     std::cout << "  -l, --list         列出可用音频设备" << std::endl;
     std::cout << "  -p, --provider <EP> EP: cpu | spacemit (默认 spacemit)" << std::endl;
+    std::cout << "  --enable-emotion   启用 SenseVoice 情绪识别 (默认关闭)" << std::endl;
     std::cout << "  -h, --help         显示帮助" << std::endl;
     std::cout << std::endl;
     std::cout << "Examples:" << std::endl;
@@ -309,6 +314,7 @@ int main(int argc, char* argv[]) {
     int total_seconds = 30;
     int flush_interval = 3;  // 每 3 秒 flush 一次
     std::string provider = "spacemit";
+    bool enable_emotion = false;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -329,6 +335,8 @@ int main(int argc, char* argv[]) {
             total_seconds = std::stoi(argv[++i]);
         } else if ((arg == "-p" || arg == "--provider") && i + 1 < argc) {
             provider = argv[++i];
+        } else if (arg == "--enable-emotion") {
+            enable_emotion = true;
         }
     }
 
@@ -345,6 +353,7 @@ int main(int argc, char* argv[]) {
     std::cout << "总时长: " << total_seconds << " 秒" << std::endl;
     std::cout << "Flush 间隔: " << flush_interval << " 秒" << std::endl;
     std::cout << "Provider: " << provider << std::endl;
+    std::cout << "情绪识别: " << (enable_emotion ? "启用" : "禁用") << std::endl;
     std::cout << std::endl;
 
     // 列出设备
@@ -357,6 +366,7 @@ int main(int argc, char* argv[]) {
     config.language = "zh";
     config.punctuation = true;
     config.provider = provider;
+    config.enable_emotion = enable_emotion;
 
     auto asrEngine = std::make_shared<SpacemiT::AsrEngine>(config);
 
@@ -368,7 +378,8 @@ int main(int argc, char* argv[]) {
     // 显示当前配置
     auto cfg = asrEngine->GetConfig();
     std::cout << "引擎: " << cfg.engine << ", 语言: " << cfg.language
-        << ", 标点: " << (cfg.punctuation ? "是" : "否") << std::endl;
+        << ", 标点: " << (cfg.punctuation ? "是" : "否")
+        << ", 情绪识别: " << (cfg.enable_emotion ? "是" : "否") << std::endl;
     std::cout << std::endl;
 
     std::cout << ">>> Warmup..." << std::endl;

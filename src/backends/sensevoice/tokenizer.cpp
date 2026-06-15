@@ -11,6 +11,7 @@
 #include "backends/sensevoice/tokenizer.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <fstream>
 #include <iostream>
 #include <memory>
@@ -21,6 +22,36 @@
 
 namespace asr {
 namespace sensevoice {
+namespace {
+
+std::string asciiLower(std::string value) {
+    std::transform(value.begin(), value.end(), value.begin(),
+        [](unsigned char ch) {
+            return static_cast<char>(std::tolower(ch));
+        });
+    return value;
+}
+
+std::string normalizeEmotionToken(const std::string& token) {
+    if (token.size() <= 4 || token.rfind("<|", 0) != 0 ||
+        token.substr(token.size() - 2) != "|>") {
+        return "";
+    }
+
+    std::string value = asciiLower(token.substr(2, token.size() - 4));
+    if (value == "emo_unknown") {
+        return "unknown";
+    }
+    if (value == "happy" || value == "sad" || value == "angry" ||
+        value == "neutral" || value == "fearful" ||
+        value == "disgusted" || value == "surprised" ||
+        value == "other") {
+        return value;
+    }
+    return "";
+}
+
+}  // namespace
 
 Tokenizer::Tokenizer(const Config& config)
     : config_(config)
@@ -153,6 +184,28 @@ std::string Tokenizer::decode(const std::vector<int>& token_ids) {
 
     std::string result = joinTokens(tokens);
     return postProcess(result);
+}
+
+Tokenizer::DecodeResult Tokenizer::decodeWithMetadata(
+    const std::vector<int>& token_ids) {
+    // Simple vocabulary-based decoding
+    std::vector<std::string> tokens;
+    tokens.reserve(token_ids.size());
+    DecodeResult decoded;
+
+    for (int id : token_ids) {
+        std::string token = idToToken(id);
+        if (!token.empty() && token != "<blank>" && token != "<unk>") {
+            if (decoded.emotion.empty()) {
+                decoded.emotion = normalizeEmotionToken(token);
+            }
+            tokens.push_back(token);
+        }
+    }
+
+    std::string result = joinTokens(tokens);
+    decoded.text = postProcess(result);
+    return decoded;
 }
 
 std::vector<int> Tokenizer::encode(const std::string& text) {

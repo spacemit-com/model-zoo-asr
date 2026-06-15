@@ -78,6 +78,14 @@ void verify_internal_config_contract() {
     const auto word_ts = sensevoice.withWordTimestamps();
     require(word_ts.return_word_timestamps,
             "withWordTimestamps must enable word timestamps");
+
+    require(!sensevoice.enable_emotion,
+            "sensevoice config must keep emotion output disabled by default");
+    const auto with_emotion = sensevoice.withEmotion();
+    require(!sensevoice.enable_emotion,
+            "withEmotion must not mutate the source config");
+    require(with_emotion.enable_emotion,
+            "withEmotion must enable emotion output on returned config");
 }
 
 void verify_audio_chunk_contract() {
@@ -97,6 +105,18 @@ void verify_audio_chunk_contract() {
     require(pcmf_chunk.format == asr::AudioFormat::PCM_F32LE,
             "float chunk must report PCM_F32LE format");
     require(pcmf_chunk.sample_rate == 8000, "float chunk must keep sample rate");
+}
+
+void verify_emotion_metadata_contract() {
+    asr::SentenceResult internal_sentence;
+    internal_sentence.emotion = "happy";
+    require(internal_sentence.emotion == "happy",
+            "internal sentence result must expose emotion metadata");
+
+    SpacemiT::Sentence public_sentence;
+    public_sentence.emotion = "neutral";
+    require(public_sentence.emotion == "neutral",
+            "public sentence result must expose emotion metadata");
 }
 
 void verify_invalid_config_error_path() {
@@ -137,6 +157,7 @@ int main(int argc, char** argv) {
         verify_public_presets();
         verify_internal_config_contract();
         verify_audio_chunk_contract();
+        verify_emotion_metadata_contract();
     } else if (mode == "--invalid-config-error-path") {
         verify_invalid_config_error_path();
     } else {

@@ -110,7 +110,8 @@ private:
 
     // 结果构建
     RecognitionResult buildResult(
-        const std::string& text, int64_t audio_duration_ms,
+        const std::string& text, const std::string& emotion,
+        int64_t audio_duration_ms,
         int64_t processing_time_ms, bool is_final);
 };
 

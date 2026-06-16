@@ -52,7 +52,7 @@ public:
 
     BackendType getType() const override { return BackendType::SENSEVOICE; }
     std::string getName() const override { return "SenseVoice"; }
-    std::string getVersion() const override { return "1.0.0"; }
+    std::string getVersion() const override { return "1.0.2"; }
 
     bool supportsStreaming() const override { return true; }
 

@@ -96,7 +96,7 @@ class CMakeBuild(build_ext):
 
 # Read version from C++ header
 def get_version():
-    return "1.0.0"
+    return "1.0.2"
 
 
 # Read long description
@@ -132,7 +132,7 @@ setup(
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
-        "License :: OSI Approved :: MIT License",
+        "License :: OSI Approved :: Apache Software License",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",

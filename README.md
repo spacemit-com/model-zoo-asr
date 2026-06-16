@@ -334,6 +334,7 @@ target_include_directories(your_target PRIVATE ${ASR_SOURCE_DIR}/include)
 
 | 版本   | 说明 |
 | ------ | ---- |
+| 1.0.2  | 同步 C++、Python、组件清单和各 backend 版本号，用于发布包含 SenseVoice 情绪识别开关的 ASR 包。 |
 | 0.1.0  | 提供 C++ / Python 接口，支持 SenseVoice、Zipformer CTC、Qwen3-ASR，文件/内存阻塞识别与流式识别。 |
 
 ## 6. 贡献方式

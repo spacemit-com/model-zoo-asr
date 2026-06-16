@@ -27,7 +27,7 @@ from .stream import AudioStream, MicrophoneStream, Resampler
 from .callback import AsrCallback, PrintCallback, CollectCallback
 from .utils import recognize_file, recognize_audio, list_devices
 
-__version__ = "1.0.0"
+__version__ = "1.0.2"
 __author__ = "muggle"
 
 __all__ = [

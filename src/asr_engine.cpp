@@ -427,7 +427,7 @@ bool ASREngine::isBackendAvailable(BackendType type) {
 }
 
 std::string ASREngine::getVersion() {
-    return "1.0.0";
+    return "1.0.2";
 }
 
 // =============================================================================

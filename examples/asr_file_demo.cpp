@@ -242,6 +242,7 @@ int main(int argc, char* argv[]) {
 
     // Recognize each file, multiple rounds
     std::vector<FileResult> results;
+    bool had_failure = false;
 
     for (int round = 0; round < rounds; ++round) {
         if (rounds > 1) {
@@ -275,8 +276,10 @@ int main(int argc, char* argv[]) {
                     << "  处理: " << fr.process_ms << " ms"
                     << "  RTF: " << std::setprecision(3) << fr.rtf << std::endl;
             } else if (!error_callback->LastError().empty()) {
+                had_failure = true;
                 std::cerr << "识别失败: " << error_callback->LastError() << std::endl;
             } else {
+                had_failure = true;
                 std::cerr << "识别失败或未检测到语音" << std::endl;
             }
             std::cout << std::endl;
@@ -320,5 +323,5 @@ int main(int argc, char* argv[]) {
 
     engine.reset();
     std::cout << std::endl << "Done." << std::endl;
-    _Exit(0);
+    _Exit(had_failure ? 1 : 0);
 }

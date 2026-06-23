@@ -18,3 +18,12 @@ tests:
     workdir: sdk
     command: |
       bash components/model_zoo/asr/tests/test_invalid_config_error_path.sh
+
+  - name: asr-python-api-contract
+    description: Verifies Python backend selection wrappers stay aligned with native ASR backends.
+    category: functional
+    scopes: [pr]
+    timeout_s: 120
+    workdir: sdk
+    command: |
+      bash components/model_zoo/asr/tests/test_python_api_contract.sh

@@ -17,8 +17,11 @@ import argparse
 def main():
     parser = argparse.ArgumentParser(description='ASR 静态文件识别')
     parser.add_argument('file', nargs='?', help='要识别的音频文件 (16kHz WAV)')
-    parser.add_argument('--model-dir', '-m', default='~/.cache/models/asr/sensevoice',
-                        help='模型目录 (默认: ~/.cache/models/asr/sensevoice)')
+    parser.add_argument('--engine', default='sensevoice',
+                        choices=['sensevoice', 'zipformer', 'qwen3-asr'],
+                        help='识别引擎 (默认: sensevoice)')
+    parser.add_argument('--model-dir', '-m', default=None,
+                        help='本地模型目录 (SenseVoice/Zipformer 可选)')
     parser.add_argument('--language', '-l', default='auto',
                         choices=['zh', 'en', 'ja', 'ko', 'yue', 'auto'],
                         help='识别语言 (默认: auto)')
@@ -31,6 +34,12 @@ def main():
                         help='重复识别轮次 (默认: 1)')
     parser.add_argument('--enable-emotion', action='store_true',
                         help='启用 SenseVoice 情绪识别 (默认关闭)')
+    parser.add_argument('--endpoint', default='http://127.0.0.1:8063/v1/chat/completions',
+                        help='Qwen3-ASR llama-server URL')
+    parser.add_argument('--model', default='qwen3-asr',
+                        help='Qwen3-ASR model tag (默认: qwen3-asr)')
+    parser.add_argument('--timeout', type=int, default=60,
+                        help='Qwen3-ASR 请求超时秒数 (默认: 60)')
 
     args = parser.parse_args()
 
@@ -47,7 +56,9 @@ def main():
     print(f"ASR 版本: {spacemit_asr.__version__}")
 
     if args.list_backends:
-        print(f"可用后端: {spacemit_asr.Engine.get_available_backends()}")
+        backends = ", ".join(
+            str(backend) for backend in spacemit_asr.Engine.get_available_backends())
+        print(f"可用后端: {backends}")
         return
 
     if not args.file:
@@ -68,14 +79,26 @@ def main():
         'auto': spacemit_asr.Language.AUTO,
     }
 
-    config = spacemit_asr.Config(args.model_dir)
+    if args.engine == 'sensevoice':
+        config = spacemit_asr.Config.sensevoice(
+            args.model_dir or '~/.cache/models/asr/sensevoice',
+            enable_emotion=args.enable_emotion)
+    elif args.engine == 'zipformer':
+        config = spacemit_asr.Config.zipformer(
+            args.model_dir or '~/.cache/models/asr/zipformer')
+    else:
+        config = spacemit_asr.Config.qwen3_asr(
+            endpoint=args.endpoint, model=args.model, timeout=args.timeout)
+
     config.language = lang_map[args.language]
     config.punctuation_enabled = True
-    config.enable_emotion = args.enable_emotion
     config.provider = args.provider
+    if args.engine == 'sensevoice':
+        config.enable_emotion = args.enable_emotion
 
     # 识别
     print(f"\n文件: {args.file}")
+    print(f"引擎: {args.engine}")
     print(f"语言: {args.language}")
     print(f"Provider: {args.provider}")
     print(f"情绪识别: {'启用' if args.enable_emotion else '禁用'}")
@@ -84,12 +107,13 @@ def main():
     with spacemit_asr.Engine(config) as engine:
         import time
         import numpy as np
-        print(">>> Warmup...")
-        silence = np.zeros(8000, dtype=np.float32)
-        t0 = time.monotonic()
-        engine.recognize(silence)
-        warmup_ms = (time.monotonic() - t0) * 1000
-        print(f"Warmup done: {warmup_ms:.0f} ms\n")
+        if args.engine != 'qwen3-asr':
+            print(">>> Warmup...")
+            silence = np.zeros(8000, dtype=np.float32)
+            t0 = time.monotonic()
+            engine.recognize(silence)
+            warmup_ms = (time.monotonic() - t0) * 1000
+            print(f"Warmup done: {warmup_ms:.0f} ms\n")
 
         total_audio_ms = 0
         total_proc_ms = 0

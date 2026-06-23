@@ -30,24 +30,120 @@ class Language(Enum):
         return self.value
 
 
+class BackendType(Enum):
+    """Supported ASR backends"""
+    SENSEVOICE = _asr.BackendType.SENSEVOICE
+    FUNASR = _asr.BackendType.FUNASR
+    WHISPER = _asr.BackendType.WHISPER
+    PARAFORMER = _asr.BackendType.PARAFORMER
+    QWEN3_ASR = _asr.BackendType.QWEN3_ASR
+    ZIPFORMER = _asr.BackendType.ZIPFORMER
+    CUSTOM = _asr.BackendType.CUSTOM
+
+    def to_native(self):
+        return self.value
+
+    def __str__(self) -> str:
+        return self.name.lower().replace("_asr", "-asr").replace("_", "-")
+
+    def __repr__(self) -> str:
+        return f"BackendType.{self.name}"
+
+
+_BACKEND_ALIASES = {
+    "sensevoice": BackendType.SENSEVOICE,
+    "funasr": BackendType.FUNASR,
+    "whisper": BackendType.WHISPER,
+    "paraformer": BackendType.PARAFORMER,
+    "qwen3-asr": BackendType.QWEN3_ASR,
+    "qwen3_asr": BackendType.QWEN3_ASR,
+    "zipformer": BackendType.ZIPFORMER,
+    "custom": BackendType.CUSTOM,
+}
+
+
+def _normalize_backend(backend: Union[BackendType, str]) -> BackendType:
+    if isinstance(backend, BackendType):
+        return backend
+    if isinstance(backend, _asr.BackendType):
+        return BackendType(backend)
+    if isinstance(backend, str):
+        key = backend.strip().lower()
+        if key in _BACKEND_ALIASES:
+            return _BACKEND_ALIASES[key]
+    raise ValueError(f"Unsupported ASR backend: {backend}")
+
+
 class Config:
     """ASR Configuration"""
 
     def __init__(
         self,
-        model_dir: str = "~/.cache/models/asr/sensevoice",
+        model_dir: Optional[str] = None,
         enable_emotion: bool = False,
+        backend: Union[BackendType, str] = BackendType.SENSEVOICE,
+        endpoint: str = "http://127.0.0.1:8063/v1/chat/completions",
+        model: str = "qwen3-asr",
+        timeout: int = 60,
     ):
         """
         Create ASR configuration.
 
         Args:
-            model_dir: Path to SenseVoice model directory
+            model_dir: Path to local model directory
             enable_emotion: Whether to enable SenseVoice emotion recognition
+            backend: Backend name or BackendType. Defaults to SenseVoice.
+            endpoint: Qwen3-ASR llama-server endpoint.
+            model: Qwen3-ASR model tag.
+            timeout: Qwen3-ASR request timeout in seconds.
         """
-        self._config = _asr.ASRConfig.sensevoice(str(Path(model_dir).expanduser()))
+        backend_type = _normalize_backend(backend)
+        if backend_type == BackendType.SENSEVOICE:
+            model_dir = model_dir or "~/.cache/models/asr/sensevoice"
+            self._config = _asr.ASRConfig.sensevoice(str(Path(model_dir).expanduser()))
+        elif backend_type == BackendType.ZIPFORMER:
+            model_dir = model_dir or "~/.cache/models/asr/zipformer"
+            self._config = _asr.ASRConfig.zipformer(str(Path(model_dir).expanduser()))
+        elif backend_type == BackendType.QWEN3_ASR:
+            self._config = _asr.ASRConfig.qwen3_asr(endpoint, model, timeout)
+        else:
+            raise ValueError(
+                f"Backend {backend_type.name} is not supported by Config helper"
+            )
+
         self._config.enable_emotion = enable_emotion
         self._model_dir = model_dir
+
+    @classmethod
+    def sensevoice(
+        cls,
+        model_dir: str = "~/.cache/models/asr/sensevoice",
+        enable_emotion: bool = False,
+    ) -> "Config":
+        """Create SenseVoice configuration."""
+        return cls(model_dir=model_dir, enable_emotion=enable_emotion,
+                   backend=BackendType.SENSEVOICE)
+
+    @classmethod
+    def zipformer(cls, model_dir: str = "~/.cache/models/asr/zipformer") -> "Config":
+        """Create Zipformer CTC configuration."""
+        return cls(model_dir=model_dir, backend=BackendType.ZIPFORMER)
+
+    @classmethod
+    def qwen3_asr(
+        cls,
+        endpoint: str = "http://127.0.0.1:8063/v1/chat/completions",
+        model: str = "qwen3-asr",
+        timeout: int = 60,
+    ) -> "Config":
+        """Create Qwen3-ASR llama-server configuration."""
+        return cls(backend=BackendType.QWEN3_ASR, endpoint=endpoint,
+                   model=model, timeout=timeout)
+
+    @property
+    def backend(self) -> BackendType:
+        """Get selected ASR backend."""
+        return BackendType(self._config.backend)
 
     @property
     def language(self) -> Language:
@@ -427,4 +523,5 @@ class Engine:
     @staticmethod
     def get_available_backends() -> list:
         """Get list of available backends"""
-        return _asr.ASREngine.get_available_backends()
+        return [BackendType(backend)
+                for backend in _asr.ASREngine.get_available_backends()]

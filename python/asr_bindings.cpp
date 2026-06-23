@@ -123,6 +123,7 @@ PYBIND11_MODULE(_spacemit_asr, m) {
         .value("FUNASR", asr::BackendType::FUNASR, "FunASR (cloud)")
         .value("WHISPER", asr::BackendType::WHISPER, "Whisper")
         .value("PARAFORMER", asr::BackendType::PARAFORMER, "Paraformer")
+        .value("QWEN3_ASR", asr::BackendType::QWEN3_ASR, "Qwen3-ASR (llama-server HTTP)")
         .value("ZIPFORMER", asr::BackendType::ZIPFORMER, "Zipformer CTC (local ONNX)")
         .value("CUSTOM", asr::BackendType::CUSTOM, "Custom backend")
         .export_values();
@@ -271,10 +272,25 @@ PYBIND11_MODULE(_spacemit_asr, m) {
         .def_static("sensevoice", &asr::ASRConfig::sensevoice,
                     py::arg("model_dir") = "~/.cache/models/asr/sensevoice",
                     "Create SenseVoice configuration")
+        .def_static("zipformer", &asr::ASRConfig::zipformer,
+                    py::arg("model_dir") = "~/.cache/models/asr/zipformer",
+                    "Create Zipformer CTC configuration")
         .def_static("funasr_cloud", &asr::ASRConfig::funasrCloud,
                     py::arg("api_key"),
                     py::arg("model_id") = "fun-asr-realtime",
                     "Create FunASR cloud configuration")
+        .def_static("qwen3_asr", [](const std::string& endpoint,
+                                    const std::string& model,
+                                    int timeout) {
+            asr::ASRConfig config;
+            config.backend = asr::BackendType::QWEN3_ASR;
+            config.extra_params["endpoint"] = endpoint;
+            config.extra_params["model"] = model;
+            config.extra_params["timeout"] = std::to_string(timeout);
+            return config;
+        }, py::arg("endpoint") = "http://127.0.0.1:8063/v1/chat/completions",
+            py::arg("model") = "qwen3-asr", py::arg("timeout") = 60,
+            "Create Qwen3-ASR llama-server configuration")
         // Builder methods
         .def("with_streaming", &asr::ASRConfig::withStreaming,
             py::arg("chunk_ms") = 100,

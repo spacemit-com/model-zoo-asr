@@ -1,7 +1,7 @@
 """
 SpacemiT ASR (Automatic Speech Recognition) Python Module
 
-A Python interface for the SenseVoice ASR engine.
+A Python interface for SenseVoice, Zipformer, and Qwen3-ASR engines.
 
 Usage:
     import spacemit_asr
@@ -22,7 +22,7 @@ Usage:
             print(text)
 """
 
-from .engine import Engine, Config, Language, Result
+from .engine import Engine, Config, Language, BackendType, Result
 from .stream import AudioStream, MicrophoneStream, Resampler
 from .callback import AsrCallback, PrintCallback, CollectCallback
 from .utils import recognize_file, recognize_audio, list_devices
@@ -35,6 +35,7 @@ __all__ = [
     "Engine",
     "Config",
     "Language",
+    "BackendType",
     "Result",
     # Streaming
     "AudioStream",

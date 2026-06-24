@@ -7,6 +7,71 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Enable Position Independent Code for all targets (required for RISC-V shared libs)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# Some K1 images ship ONNX Runtime headers that use the non-standard __fp16
+# keyword while the default RISC-V GCC does not expose it. Keep the workaround
+# K1-scoped and enable it only when the active compiler needs it.
+include(CheckCXXSourceCompiles)
+
+set(ASR_ONNXRUNTIME_USE_FLOAT16_COMPAT OFF)
+set(_ASR_IS_K1_BUILD OFF)
+if(DEFINED ENV{BUILD_TARGET} AND "$ENV{BUILD_TARGET}" MATCHES "^k1($|[-_])")
+    set(_ASR_IS_K1_BUILD ON)
+endif()
+
+if(NOT _ASR_IS_K1_BUILD AND DEFINED ENV{BUILD_TARGET_FILE} AND EXISTS "$ENV{BUILD_TARGET_FILE}")
+    file(READ "$ENV{BUILD_TARGET_FILE}" _ASR_BUILD_TARGET_JSON)
+    if(_ASR_BUILD_TARGET_JSON MATCHES "\"board\"[ \t\r\n]*:[ \t\r\n]*\"k1([-_][^\"]*)?\"")
+        set(_ASR_IS_K1_BUILD ON)
+    endif()
+endif()
+
+if(NOT CMAKE_CROSSCOMPILING AND NOT _ASR_IS_K1_BUILD AND EXISTS "/proc/device-tree")
+    execute_process(
+        COMMAND /bin/sh -c "tr '\\0' '\\n' </proc/device-tree/compatible 2>/dev/null; tr '\\0' '\\n' </proc/device-tree/model 2>/dev/null"
+        OUTPUT_VARIABLE _ASR_DEVICE_TREE_ID
+        ERROR_QUIET
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    if(_ASR_DEVICE_TREE_ID MATCHES "spacemit,k1|spacemit k1|k1-x")
+        set(_ASR_IS_K1_BUILD ON)
+    endif()
+endif()
+
+if(_ASR_IS_K1_BUILD AND CMAKE_SYSTEM_PROCESSOR MATCHES "riscv|RISCV")
+    set(_ASR_CMAKE_REQUIRED_QUIET_SAVED "${CMAKE_REQUIRED_QUIET}")
+    set(CMAKE_REQUIRED_QUIET ON)
+    check_cxx_source_compiles("
+int main() {
+    __fp16 value = 0;
+    return static_cast<int>(sizeof(value));
+}
+" ASR_COMPILER_SUPPORTS_NATIVE_FP16)
+
+    if(NOT ASR_COMPILER_SUPPORTS_NATIVE_FP16)
+        check_cxx_source_compiles("
+int main() {
+    _Float16 value = 0;
+    return static_cast<int>(sizeof(value));
+}
+" ASR_COMPILER_SUPPORTS_FLOAT16_TYPE)
+
+        if(ASR_COMPILER_SUPPORTS_FLOAT16_TYPE)
+            set(ASR_ONNXRUNTIME_USE_FLOAT16_COMPAT ON)
+            message(STATUS "ASR: K1 RISC-V compiler does not support __fp16; using ONNX Runtime _Float16 compatibility wrapper")
+        else()
+            message(WARNING "ASR: K1 RISC-V compiler supports neither __fp16 nor _Float16; ONNX Runtime headers may fail")
+        endif()
+    endif()
+    set(CMAKE_REQUIRED_QUIET "${_ASR_CMAKE_REQUIRED_QUIET_SAVED}")
+    unset(_ASR_CMAKE_REQUIRED_QUIET_SAVED)
+endif()
+
+function(asr_apply_onnxruntime_compat target_name)
+    if(ASR_ONNXRUNTIME_USE_FLOAT16_COMPAT)
+        target_compile_definitions(${target_name} PRIVATE ASR_ONNXRUNTIME_USE_FLOAT16_COMPAT)
+    endif()
+endfunction()
+
 # -------------------------------------------------------
 # Build Options
 # -------------------------------------------------------
@@ -111,6 +176,7 @@ set(SENSEVOICE_SOURCES
 )
 
 add_library(sensevoice STATIC ${SENSEVOICE_SOURCES})
+asr_apply_onnxruntime_compat(sensevoice)
 
 target_include_directories(sensevoice PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -136,6 +202,7 @@ set(ZIPFORMER_SOURCES
 )
 
 add_library(zipformer STATIC ${ZIPFORMER_SOURCES})
+asr_apply_onnxruntime_compat(zipformer)
 
 target_include_directories(zipformer PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -168,6 +235,7 @@ set(ASR_SOURCES
 
 add_library(asr STATIC ${ASR_SOURCES})
 add_library(stt ALIAS asr)
+asr_apply_onnxruntime_compat(asr)
 
 target_include_directories(asr PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include

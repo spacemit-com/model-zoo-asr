@@ -13,7 +13,7 @@
 #include <string>
 #include <vector>
 
-#include "onnxruntime_cxx_api.h"
+#include "../onnx_compat.hpp"
 
 namespace zipformer {
 

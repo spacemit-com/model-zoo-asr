@@ -7,10 +7,16 @@ if(DEFINED _FETCH_QWEN3_ASR_MODEL_LOADED)
 endif()
 set(_FETCH_QWEN3_ASR_MODEL_LOADED ON)
 
-set(_QWEN3_ASR_MODEL_URL "https://archive.spacemit.com/spacemit-ai/model_zoo/asr/qwen3-asr-0.6B-dynq-q40.tar.gz")
-set(_QWEN3_ASR_MODEL_NAME "qwen3-asr-0.6B-dynq-q40")
-set(_QWEN3_ASR_ARCHIVE_SUBDIR "qwen3-asr-0.6B-dynq-q40")
-set(_QWEN3_ASR_REQUIRED_FILES "Qwen3-ASR-0.6B-text-q40.gguf")
+set(_QWEN3_ASR_MODEL_URL "https://archive.spacemit.com/spacemit-ai/model_zoo/asr/qwen3-asr-1.7B-dynq-q40.tar.gz")
+set(_QWEN3_ASR_MODEL_NAME "qwen3-asr-1.7B-dynq-q40")
+set(_QWEN3_ASR_ARCHIVE_SUBDIR "qwen3-asr-1.7B-dynq-q40")
+set(_QWEN3_ASR_REQUIRED_FILES
+  "Qwen3-ASR-1.7B-text-q40.gguf"
+  "Qwen3-ASR-1.7B-encoder-frontend.dynq.onnx"
+  "Qwen3-ASR-1.7B-encoder-backend.dynq.onnx"
+  "Qwen3-ASR-1.7B-encoder-split-metadata.json"
+  "config.json"
+)
 
 # Cache root
 if(DEFINED ENV{HOME})

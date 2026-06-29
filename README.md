@@ -75,35 +75,68 @@ sudo apt install llama.cpp-tools-spacemit
 **2. 下载模型：**
 
 ```bash
-mkdir -p ~/.cache/models/asr/qwen3asr
-cd ~/.cache/models/asr/qwen3asr
+mkdir -p ~/.cache/models/asr
+cd ~/.cache/models/asr
+
+# Qwen3-ASR 0.6B（轻量，速度优先）
 wget https://archive.spacemit.com/spacemit-ai/model_zoo/asr/qwen3-asr-0.6B-dynq-q40.tar.gz
 tar -xzf qwen3-asr-0.6B-dynq-q40.tar.gz
+
+# Qwen3-ASR 1.7B（更大，质量优先）
+wget https://archive.spacemit.com/spacemit-ai/model_zoo/asr/qwen3-asr-1.7B-dynq-q40.tar.gz
+tar -xzf qwen3-asr-1.7B-dynq-q40.tar.gz
 ```
 
 解压后目录结构：
 ```
 qwen3-asr-0.6B-dynq-q40/
-├── Qwen3-ASR-0.6B-text-q40.gguf          # LLM 文本解码器
-├── Qwen3-ASR-0.6B-encoder-frontend.dynq.onnx  # 音频编码器前端
-├── Qwen3-ASR-0.6B-encoder-backend.dynq.onnx   # 音频编码器后端
+├── Qwen3-ASR-0.6B-text-q40.gguf
+├── Qwen3-ASR-0.6B-encoder-frontend.dynq.onnx
+├── Qwen3-ASR-0.6B-encoder-backend.dynq.onnx
+└── config.json
+
+qwen3-asr-1.7B-dynq-q40/
+├── Qwen3-ASR-1.7B-text-q40.gguf                 # LLM 文本解码器
+├── Qwen3-ASR-1.7B-encoder-frontend.dynq.onnx    # 音频编码器前端
+├── Qwen3-ASR-1.7B-encoder-backend.dynq.onnx     # 音频编码器后端
+├── Qwen3-ASR-1.7B-encoder-split-metadata.json   # encoder split metadata
 └── config.json
 ```
 
 **3. 启动 llama-server：**
 
+启动哪个模型，就把 `-m` 和 `--smt-config-dir` 指向对应目录。ASR 组件只访问
+llama-server endpoint，不直接切换本地模型文件。
+
+Qwen3-ASR 0.6B：
+
 ```bash
 llama-server \
-    -m ~/.cache/models/asr/qwen3asr/qwen3-asr-0.6B-dynq-q40/Qwen3-ASR-0.6B-text-q40.gguf \
+    -m ~/.cache/models/asr/qwen3-asr-0.6B-dynq-q40/Qwen3-ASR-0.6B-text-q40.gguf \
     --media-backend smt \
-    --smt-config-dir ~/.cache/models/asr/qwen3asr/qwen3-asr-0.6B-dynq-q40/ \
+    --smt-config-dir ~/.cache/models/asr/qwen3-asr-0.6B-dynq-q40/ \
     --host 127.0.0.1 --port 8063 \
+    --alias qwen3-asr \
+    -t 4 -c 4096
+```
+
+Qwen3-ASR 1.7B：
+
+```bash
+llama-server \
+    -m ~/.cache/models/asr/qwen3-asr-1.7B-dynq-q40/Qwen3-ASR-1.7B-text-q40.gguf \
+    --media-backend smt \
+    --smt-config-dir ~/.cache/models/asr/qwen3-asr-1.7B-dynq-q40/ \
+    --host 127.0.0.1 --port 8063 \
+    --alias qwen3-asr \
     -t 4 -c 4096
 ```
 
 关键参数说明：
+- `-m` 与 `--smt-config-dir`：决定当前服务加载的 Qwen3-ASR 模型版本。
 - `--media-backend smt`：启用 SpacemiT 媒体后端（处理音频输入）
 - `--smt-config-dir`：指定包含 ONNX 音频编码器的目录
+- `--alias qwen3-asr`：设置 OpenAI API 请求中的模型名。保持该 alias 时，`asr_file_demo --engine qwen3-asr` 无需额外指定 `--model`。
 - `-c 4096`：限制 llama.cpp 上下文长度，降低 8G 板卡上的 KV cache 内存占用；长音频可按需调大。
 
 **4. 验证服务：**
@@ -362,11 +395,17 @@ target_include_directories(your_target PRIVATE ${ASR_SOURCE_DIR}/include)
 | 003_zh_en_search.wav | 2324 ms | 299 ms | 0.129 |
 | **合计** | **19903 ms** | **5833 ms** | **0.293** |
 
-### Qwen3-ASR (Q4_0, llama-server, 4 线程)
+### Qwen3-ASR (Q4_0, llama-server, K3)
 
-| 测试文件 | 音频时长 | 处理时间 | RTF |
-|----------|----------|----------|-----|
-| 001_zh_daily_weather.wav | 1619 ms | 205 ms | 0.127 |
+测试命令使用 `llama-server -c 4096`，并通过 `asr_file_demo --engine qwen3-asr --rounds 3`
+连续识别 `001_zh_daily_weather.wav` 与 `004_zh_selling_sausages.wav`。
+
+| 模型 | llama-server 线程数 | 测试文件 | 总音频时长 | 总处理时间 | RTF |
+|------|---------------------|----------|------------|------------|-----|
+| Qwen3-ASR 0.6B | 4 | 2 个文件 x 3 轮 | 47331 ms | 10257 ms | 0.217 |
+| Qwen3-ASR 0.6B | 8 | 2 个文件 x 3 轮 | 47331 ms | 7977 ms | 0.169 |
+| Qwen3-ASR 1.7B | 4 | 2 个文件 x 3 轮 | 47331 ms | 19883 ms | 0.420 |
+| Qwen3-ASR 1.7B | 8 | 2 个文件 x 3 轮 | 47331 ms | 15572 ms | 0.329 |
 
 ### Zipformer CTC (CPU, 4 线程)
 

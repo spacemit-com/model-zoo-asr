@@ -120,7 +120,7 @@ PYBIND11_MODULE(_spacemit_asr, m) {
 
     py::enum_<asr::BackendType>(m, "BackendType", "ASR backend types")
         .value("SENSEVOICE", asr::BackendType::SENSEVOICE, "SenseVoice (local ONNX)")
-        .value("FUNASR", asr::BackendType::FUNASR, "FunASR (cloud)")
+        .value("FUNASR", asr::BackendType::FUNASR, "Fun-ASR (llama-server HTTP)")
         .value("WHISPER", asr::BackendType::WHISPER, "Whisper")
         .value("PARAFORMER", asr::BackendType::PARAFORMER, "Paraformer")
         .value("QWEN3_ASR", asr::BackendType::QWEN3_ASR, "Qwen3-ASR (llama-server HTTP)")
@@ -275,10 +275,15 @@ PYBIND11_MODULE(_spacemit_asr, m) {
         .def_static("zipformer", &asr::ASRConfig::zipformer,
                     py::arg("model_dir") = "~/.cache/models/asr/zipformer",
                     "Create Zipformer CTC configuration")
+        .def_static("funasr", &asr::ASRConfig::funasr,
+                    py::arg("endpoint") = "http://127.0.0.1:8063/v1/audio/transcriptions",
+                    py::arg("model") = "funasr",
+                    py::arg("timeout") = 60,
+                    "Create Fun-ASR llama-server configuration")
         .def_static("funasr_cloud", &asr::ASRConfig::funasrCloud,
                     py::arg("api_key"),
                     py::arg("model_id") = "fun-asr-realtime",
-                    "Create FunASR cloud configuration")
+                    "Create legacy FunASR cloud configuration (transport not implemented)")
         .def_static("qwen3_asr", [](const std::string& endpoint,
                                     const std::string& model,
                                     int timeout) {

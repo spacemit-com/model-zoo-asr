@@ -64,7 +64,8 @@ void printUsage(const char* program) {
     std::cout << std::endl;
     std::cout << "Arguments:" << std::endl;
     std::cout << "  audio files   One or more WAV audio files" << std::endl;
-    std::cout << "  --engine      Engine: sensevoice | zipformer | qwen3-asr (default: sensevoice)" << std::endl;
+    std::cout << "  --engine      Engine: sensevoice | zipformer | funasr | qwen3-asr"
+        << " (default: sensevoice)" << std::endl;
     std::cout << "  --model-dir   Path to SenseVoice model directory" << std::endl;
     std::cout << "                Default: ~/.cache/models/asr/sensevoice" << std::endl;
     std::cout << "  --rounds N    Run N rounds of recognition (default: 1)" << std::endl;
@@ -72,10 +73,9 @@ void printUsage(const char* program) {
     std::cout << "  --hotwords    Comma-separated hotwords (e.g. \"SpacemiT,进迭时空\")" << std::endl;
     std::cout << "  --hotword-boost  Hotword boost weight (default: 2.0)" << std::endl;
     std::cout << "  --enable-emotion  Enable SenseVoice emotion recognition (default: off)" << std::endl;
-    std::cout << "  --endpoint    Qwen3-ASR llama-server URL" << std::endl;
-    std::cout << "                Default: http://127.0.0.1:8063/v1/chat/completions" << std::endl;
-    std::cout << "  --model       Qwen3-ASR model tag (default: qwen3-asr)" << std::endl;
-    std::cout << "  --timeout     Qwen3-ASR timeout in seconds (default: 60)" << std::endl;
+    std::cout << "  --endpoint    Fun-ASR/Qwen3-ASR llama-server URL" << std::endl;
+    std::cout << "  --model       Fun-ASR/Qwen3-ASR model tag" << std::endl;
+    std::cout << "  --timeout     llama-server timeout in seconds (default: 60)" << std::endl;
     std::cout << std::endl;
     std::cout << "Examples:" << std::endl;
     std::cout << "  " << program << " ~/test.wav" << std::endl;
@@ -83,6 +83,10 @@ void printUsage(const char* program) {
     std::cout << "  " << program
                 << " a.wav b.wav --engine qwen3-asr"
                 << " --endpoint http://10.0.90.72:8063/v1/chat/completions"
+                << std::endl;
+    std::cout << "  " << program
+                << " a.wav --engine funasr"
+                << " --endpoint http://10.0.90.72:8063/v1/audio/transcriptions"
                 << std::endl;
     std::cout << "  " << program << " a.wav b.wav --model-dir /path/to/models" << std::endl;
 }
@@ -109,8 +113,10 @@ int main(int argc, char* argv[]) {
     std::string provider = "spacemit";
     std::string hotwords_str;
     float hotword_boost = 2.0f;
-    std::string endpoint = "http://127.0.0.1:8063/v1/chat/completions";
-    std::string model_tag = "qwen3-asr";
+    std::string endpoint;
+    std::string model_tag;
+    bool endpoint_set = false;
+    bool model_tag_set = false;
     int timeout = 60;
     int rounds = 1;
     bool enable_emotion = false;
@@ -135,8 +141,10 @@ int main(int argc, char* argv[]) {
             enable_emotion = true;
         } else if (arg == "--endpoint" && i + 1 < argc) {
             endpoint = argv[++i];
+            endpoint_set = true;
         } else if (arg == "--model" && i + 1 < argc) {
             model_tag = argv[++i];
+            model_tag_set = true;
         } else if (arg == "--timeout" && i + 1 < argc) {
             timeout = std::atoi(argv[++i]);
         } else {
@@ -161,9 +169,11 @@ int main(int argc, char* argv[]) {
     config.punctuation = true;
     config.enable_emotion = enable_emotion;
 
-    if (engine_name == "qwen3-asr") {
-        config.endpoint = endpoint;
-        config.model = model_tag;
+    const bool is_server_backend =
+        engine_name == "funasr" || engine_name == "qwen3-asr";
+    if (is_server_backend) {
+        if (endpoint_set) config.endpoint = endpoint;
+        if (model_tag_set) config.model = model_tag;
         config.timeout = timeout;
     } else {
         if (model_dir_set) {
@@ -206,7 +216,7 @@ int main(int argc, char* argv[]) {
     std::cout << "标点: " << (cfg.punctuation ? "启用" : "禁用") << std::endl;
     std::cout << "情绪识别: " << (cfg.enable_emotion ? "启用" : "禁用") << std::endl;
     std::cout << "采样率: " << cfg.sample_rate << " Hz" << std::endl;
-    if (engine_name == "qwen3-asr") {
+    if (is_server_backend) {
         std::cout << "Endpoint: " << cfg.endpoint << std::endl;
         std::cout << "Model: " << cfg.model << std::endl;
         std::cout << "Timeout: " << cfg.timeout << "s" << std::endl;
@@ -226,7 +236,7 @@ int main(int argc, char* argv[]) {
     std::cout << std::endl;
 
     // --- Warmup: 跑一次哑推理，加热 EP JIT 缓存 ---
-    if (engine_name != "qwen3-asr") {
+    if (!is_server_backend) {
         std::cout << ">>> Warmup (excluded from benchmark)..." << std::endl;
         {
             std::vector<float> silence(8000, 0.0f);  // 0.5s 静音 @16kHz

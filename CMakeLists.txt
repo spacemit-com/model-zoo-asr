@@ -84,6 +84,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/kaldi_native_fbank.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/FetchSenseVoiceModel.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/FetchZipformerModel.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/FetchQwen3AsrModel.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/FetchFunAsrModel.cmake)
 
 # -------------------------------------------------------
 # Audio Component (optional, for stream demo)
@@ -160,6 +161,7 @@ set(ASR_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/model_downloader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/asr_engine.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/sensevoice/sensevoice_backend.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/funasr/funasr_backend.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/qwen3_asr/qwen3_asr_backend.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/zipformer/zipformer_backend.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/asr_adapter.cpp

@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "audio_utils.hpp"
+#include "backends/funasr/funasr_backend.hpp"
 #include "backends/qwen3_asr/qwen3_asr_backend.hpp"
 #include "backends/sensevoice/sensevoice_model.hpp"
 #include "backends/zipformer/zipformer_backend.hpp"
@@ -611,9 +612,7 @@ std::unique_ptr<IASRBackend> ASRBackendFactory::create(BackendType type) {
             return std::make_unique<SenseVoiceBackend>();
 
         case BackendType::FUNASR:
-            // TODO(spacemit): Implement FunASR backend
-            std::cerr << "[ASRBackendFactory] FunASR backend not yet implemented" << std::endl;
-            return nullptr;
+            return std::make_unique<FunASRBackend>();
 
         case BackendType::WHISPER:
             // TODO(spacemit): Implement Whisper backend
@@ -640,6 +639,7 @@ std::unique_ptr<IASRBackend> ASRBackendFactory::create(BackendType type) {
 bool ASRBackendFactory::isAvailable(BackendType type) {
     switch (type) {
         case BackendType::SENSEVOICE:
+        case BackendType::FUNASR:
         case BackendType::QWEN3_ASR:
         case BackendType::ZIPFORMER:
             return true;
@@ -651,6 +651,7 @@ bool ASRBackendFactory::isAvailable(BackendType type) {
 std::vector<BackendType> ASRBackendFactory::getAvailableBackends() {
     std::vector<BackendType> backends;
     backends.push_back(BackendType::SENSEVOICE);
+    backends.push_back(BackendType::FUNASR);
     backends.push_back(BackendType::QWEN3_ASR);
     backends.push_back(BackendType::ZIPFORMER);
     return backends;

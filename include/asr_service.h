@@ -41,9 +41,9 @@ struct AsrConfig {
     float hotword_boost = 1.0f;
     std::string hotword_file;
 
-    // Qwen3-ASR llama-server settings (used when engine == "qwen3-asr")
-    std::string endpoint = "http://127.0.0.1:8063/v1/chat/completions";
-    std::string model = "qwen3-asr";
+    // llama-server settings (used by Fun-ASR and Qwen3-ASR)
+    std::string endpoint;
+    std::string model;
     int timeout = 60;
 
     static AsrConfig Preset(const std::string& name);

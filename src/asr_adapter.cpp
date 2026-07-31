@@ -28,6 +28,20 @@
 
 namespace SpacemiT {
 
+namespace {
+
+AsrConfig makeEngineConfig(
+        const std::string& engine,
+        const std::string& model_dir) {
+    auto config = AsrConfig::Preset(engine.empty() ? "sensevoice" : engine);
+    if (!model_dir.empty()) {
+        config.model_dir = model_dir;
+    }
+    return config;
+}
+
+}  // namespace
+
 // =============================================================================
 // RecognitionResult::Impl
 // =============================================================================
@@ -348,45 +362,7 @@ private:
 // =============================================================================
 
 AsrEngine::AsrEngine(const std::string& engine, const std::string& model_dir)
-    : impl_(std::make_unique<Impl>()) {
-
-    impl_->engine_name = engine;
-    impl_->model_dir = model_dir;
-
-    // 保存公开配置
-    impl_->public_config.engine = engine.empty() ? "sensevoice" : engine;
-    impl_->public_config.model_dir = model_dir;
-
-    // 创建内部引擎
-    impl_->engine = std::make_unique<asr::ASREngine>();
-
-    // 构建配置
-    asr::ASRConfig config;
-
-    if (engine == "sensevoice" || engine.empty()) {
-        // 使用 SenseVoice 后端
-        std::string dir = model_dir.empty() ? "~/.cache/models/asr/sensevoice" : model_dir;
-        config = asr::ASRConfig::sensevoice(dir);
-    } else {
-        // 未来支持其他引擎
-        // 目前默认使用 SenseVoice
-        std::string dir = model_dir.empty() ? "~/.cache/models/asr/sensevoice" : model_dir;
-        config = asr::ASRConfig::sensevoice(dir);
-    }
-
-    config.language = asr::Language::AUTO;
-
-    // 初始化引擎
-    auto err = impl_->engine->initialize(config);
-    impl_->initialized = err.isOk();
-
-    if (impl_->initialized) {
-        // 设置内部回调以捕获流式结果
-        impl_->callback_adapter =
-            std::make_unique<CallbackAdapter>(nullptr, impl_.get());
-        impl_->engine->setCallback(impl_->callback_adapter.get());
-    }
-}
+    : AsrEngine(makeEngineConfig(engine, model_dir)) {}
 
 AsrEngine::AsrEngine(const AsrConfig& config)
     : impl_(std::make_unique<Impl>()) {
@@ -402,11 +378,23 @@ AsrEngine::AsrEngine(const AsrConfig& config)
     // 构建内部配置
     asr::ASRConfig internal_config;
 
-    if (config.engine == "qwen3-asr") {
+    if (config.engine == "funasr") {
+        internal_config.backend = asr::BackendType::FUNASR;
+        if (!config.endpoint.empty()) {
+            internal_config.extra_params["endpoint"] = config.endpoint;
+        }
+        if (!config.model.empty()) {
+            internal_config.extra_params["model"] = config.model;
+        }
+        internal_config.extra_params["timeout"] = std::to_string(config.timeout);
+    } else if (config.engine == "qwen3-asr") {
         internal_config.backend = asr::BackendType::QWEN3_ASR;
-        // Pass llama-server params via extra_params
-        internal_config.extra_params["endpoint"] = config.endpoint;
-        internal_config.extra_params["model"] = config.model;
+        if (!config.endpoint.empty()) {
+            internal_config.extra_params["endpoint"] = config.endpoint;
+        }
+        if (!config.model.empty()) {
+            internal_config.extra_params["model"] = config.model;
+        }
         internal_config.extra_params["timeout"] = std::to_string(config.timeout);
     } else if (config.engine == "zipformer") {
         std::string dir =

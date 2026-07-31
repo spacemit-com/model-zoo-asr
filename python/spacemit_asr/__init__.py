@@ -1,7 +1,7 @@
 """
 SpacemiT ASR (Automatic Speech Recognition) Python Module
 
-A Python interface for SenseVoice, Zipformer, and Qwen3-ASR engines.
+A Python interface for SenseVoice, Zipformer, Fun-ASR, and Qwen3-ASR engines.
 
 Usage:
     import spacemit_asr

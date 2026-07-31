@@ -31,6 +31,7 @@ bool contains(const std::vector<std::string>& values, const std::string& value) 
 void verify_public_presets() {
     const auto presets = SpacemiT::AsrConfig::AvailablePresets();
     require(contains(presets, "sensevoice"), "sensevoice preset must be advertised");
+    require(contains(presets, "funasr"), "funasr preset must be advertised");
     require(contains(presets, "qwen3-asr"), "qwen3-asr preset must be advertised");
     require(contains(presets, "zipformer"), "zipformer preset must be advertised");
 
@@ -40,10 +41,20 @@ void verify_public_presets() {
     require(sensevoice.provider == "spacemit", "sensevoice preset must keep default provider");
     require(!sensevoice.model_dir.empty(), "sensevoice preset must provide a model directory");
 
+    const auto funasr = SpacemiT::AsrConfig::Preset("funasr");
+    require(funasr.engine == "funasr", "funasr preset must select funasr engine");
+    require(funasr.model_dir.empty(), "funasr preset must not require a local model directory");
+    require(funasr.endpoint.find("/v1/audio/transcriptions") != std::string::npos,
+            "funasr preset must use the transcription endpoint");
+    require(funasr.model == "funasr", "funasr preset must use the funasr model alias");
+
     const auto qwen3 = SpacemiT::AsrConfig::Preset("qwen3-asr");
     require(qwen3.engine == "qwen3-asr", "qwen3 preset must select qwen3-asr engine");
     require(qwen3.model_dir.empty(), "qwen3 preset must not require a local model directory");
     require(qwen3.provider == "cpu", "qwen3 preset must select cpu provider by default");
+    require(qwen3.endpoint.find("/v1/chat/completions") != std::string::npos,
+            "qwen3 preset must keep the chat completions endpoint");
+    require(qwen3.model == "qwen3-asr", "qwen3 preset must keep the qwen3-asr model alias");
 
     const auto zipformer = SpacemiT::AsrConfig::Preset("zipformer");
     require(zipformer.engine == "zipformer", "zipformer preset must select zipformer engine");
@@ -60,6 +71,24 @@ void verify_internal_config_contract() {
             "sensevoice config must derive vocab path from model dir");
     require(asr::ConfigValidator::validate(sensevoice).isOk(),
             "valid sensevoice config must pass validation");
+
+    const auto funasr = asr::ASRConfig::funasr();
+    require(funasr.backend == asr::BackendType::FUNASR,
+            "funasr config must select FUNASR backend");
+    require(funasr.extra_params.at("endpoint").find("/v1/audio/transcriptions") !=
+                std::string::npos,
+            "funasr config must use the transcription endpoint");
+    require(asr::ConfigValidator::validate(funasr).isOk(),
+            "valid funasr server config must pass validation");
+
+    const auto legacy_funasr = asr::ASRConfig::funasrCloud("test-token");
+    require(legacy_funasr.backend == asr::BackendType::FUNASR,
+            "legacy funasr cloud factory must remain source compatible");
+    const auto legacy_error = asr::ConfigValidator::validate(legacy_funasr);
+    require(legacy_error.code == asr::ErrorCode::INVALID_CONFIG,
+            "legacy funasr cloud transport must fail validation");
+    require(legacy_error.message.find("not implemented") != std::string::npos,
+            "legacy funasr cloud validation must explain the unsupported transport");
 
     const auto streaming = sensevoice.withStreaming(40);
     require(sensevoice.mode == asr::RecognitionMode::OFFLINE,

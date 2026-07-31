@@ -82,8 +82,8 @@ class Config:
         model_dir: Optional[str] = None,
         enable_emotion: bool = False,
         backend: Union[BackendType, str] = BackendType.SENSEVOICE,
-        endpoint: str = "http://127.0.0.1:8063/v1/chat/completions",
-        model: str = "qwen3-asr",
+        endpoint: Optional[str] = None,
+        model: Optional[str] = None,
         timeout: int = 60,
     ):
         """
@@ -93,9 +93,9 @@ class Config:
             model_dir: Path to local model directory
             enable_emotion: Whether to enable SenseVoice emotion recognition
             backend: Backend name or BackendType. Defaults to SenseVoice.
-            endpoint: Qwen3-ASR llama-server endpoint.
-            model: Qwen3-ASR model tag.
-            timeout: Qwen3-ASR request timeout in seconds.
+            endpoint: llama-server endpoint for Fun-ASR or Qwen3-ASR.
+            model: llama-server model tag.
+            timeout: llama-server request timeout in seconds.
         """
         backend_type = _normalize_backend(backend)
         if backend_type == BackendType.SENSEVOICE:
@@ -104,8 +104,18 @@ class Config:
         elif backend_type == BackendType.ZIPFORMER:
             model_dir = model_dir or "~/.cache/models/asr/zipformer"
             self._config = _asr.ASRConfig.zipformer(str(Path(model_dir).expanduser()))
+        elif backend_type == BackendType.FUNASR:
+            self._config = _asr.ASRConfig.funasr(
+                endpoint or "http://127.0.0.1:8063/v1/audio/transcriptions",
+                model or "funasr",
+                timeout,
+            )
         elif backend_type == BackendType.QWEN3_ASR:
-            self._config = _asr.ASRConfig.qwen3_asr(endpoint, model, timeout)
+            self._config = _asr.ASRConfig.qwen3_asr(
+                endpoint or "http://127.0.0.1:8063/v1/chat/completions",
+                model or "qwen3-asr",
+                timeout,
+            )
         else:
             raise ValueError(
                 f"Backend {backend_type.name} is not supported by Config helper"
@@ -128,6 +138,17 @@ class Config:
     def zipformer(cls, model_dir: str = "~/.cache/models/asr/zipformer") -> "Config":
         """Create Zipformer CTC configuration."""
         return cls(model_dir=model_dir, backend=BackendType.ZIPFORMER)
+
+    @classmethod
+    def funasr(
+        cls,
+        endpoint: str = "http://127.0.0.1:8063/v1/audio/transcriptions",
+        model: str = "funasr",
+        timeout: int = 60,
+    ) -> "Config":
+        """Create Fun-ASR llama-server configuration."""
+        return cls(backend=BackendType.FUNASR, endpoint=endpoint,
+                   model=model, timeout=timeout)
 
     @classmethod
     def qwen3_asr(

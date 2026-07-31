@@ -21,11 +21,22 @@ static const std::map<std::string, std::function<AsrConfig()>>& getPresets() {
             config.model_dir = "~/.cache/models/asr/sensevoice";
             return config;
         }},
+        {"funasr", []() {
+            AsrConfig config;
+            config.engine = "funasr";
+            config.model_dir = "";
+            config.provider = "cpu";
+            config.endpoint = "http://127.0.0.1:8063/v1/audio/transcriptions";
+            config.model = "funasr";
+            return config;
+        }},
         {"qwen3-asr", []() {
             AsrConfig config;
             config.engine = "qwen3-asr";
             config.model_dir = "";
             config.provider = "cpu";
+            config.endpoint = "http://127.0.0.1:8063/v1/chat/completions";
+            config.model = "qwen3-asr";
             return config;
         }},
         {"zipformer", []() {

@@ -18,8 +18,11 @@ module_dir = Path("components/model_zoo/asr")
 source_root = module_dir / "python"
 
 bindings = (module_dir / "python/asr_bindings.cpp").read_text()
+assert '.value("FUNASR"' in bindings
 assert '.value("QWEN3_ASR"' in bindings
 assert '.def_static("zipformer"' in bindings
+assert '.def_static("funasr"' in bindings
+assert '.def_static("funasr_cloud"' in bindings
 assert '.def_static("qwen3_asr"' in bindings
 
 
@@ -76,11 +79,27 @@ class NativeConfig:
         }
         return config
 
+    @staticmethod
+    def funasr(endpoint, model, timeout):
+        config = NativeConfig()
+        config.backend = BackendType.FUNASR
+        config.extra_params = {
+            "endpoint": endpoint,
+            "model": model,
+            "timeout": str(timeout),
+        }
+        return config
+
 
 class NativeEngine:
     @staticmethod
     def get_available_backends():
-        return [BackendType.SENSEVOICE, BackendType.QWEN3_ASR, BackendType.ZIPFORMER]
+        return [
+            BackendType.SENSEVOICE,
+            BackendType.FUNASR,
+            BackendType.QWEN3_ASR,
+            BackendType.ZIPFORMER,
+        ]
 
     @staticmethod
     def get_version():
@@ -103,6 +122,12 @@ assert spacemit_asr.BackendType.QWEN3_ASR.name == "QWEN3_ASR"
 assert spacemit_asr.Config().backend == spacemit_asr.BackendType.SENSEVOICE
 assert spacemit_asr.Config.zipformer().backend == spacemit_asr.BackendType.ZIPFORMER
 
+funasr = spacemit_asr.Config.funasr(timeout=5)
+assert funasr.backend == spacemit_asr.BackendType.FUNASR
+assert funasr._config.extra_params["endpoint"].endswith("/v1/audio/transcriptions")
+assert funasr._config.extra_params["model"] == "funasr"
+assert funasr._config.extra_params["timeout"] == "5"
+
 qwen = spacemit_asr.Config.qwen3_asr(
     endpoint="http://127.0.0.1:8063/v1/chat/completions",
     model="qwen3-asr",
@@ -114,6 +139,7 @@ assert qwen._config.extra_params["timeout"] == "7"
 backends = spacemit_asr.Engine.get_available_backends()
 assert backends == [
     spacemit_asr.BackendType.SENSEVOICE,
+    spacemit_asr.BackendType.FUNASR,
     spacemit_asr.BackendType.QWEN3_ASR,
     spacemit_asr.BackendType.ZIPFORMER,
 ]

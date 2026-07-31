@@ -174,7 +174,7 @@ struct ErrorInfo {
 
 enum class BackendType {
     SENSEVOICE,     // SenseVoice (ONNX, 本地)
-    FUNASR,         // FunASR (云端或本地)
+    FUNASR,         // Fun-ASR (llama-server HTTP)
     WHISPER,        // Whisper (未来扩展)
     PARAFORMER,     // Paraformer (未来扩展)
     QWEN3_ASR,      // Qwen3-ASR (llama-server HTTP)

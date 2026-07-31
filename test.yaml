@@ -27,3 +27,12 @@ tests:
     workdir: sdk
     command: |
       bash components/model_zoo/asr/tests/test_python_api_contract.sh
+
+  - name: asr-funasr-backend-contract
+    description: Verifies FunASR multipart requests, audio normalization, response parsing, and HTTP error mapping against a local mock server.
+    category: functional
+    scopes: [pr]
+    timeout_s: 120
+    workdir: sdk
+    command: |
+      bash components/model_zoo/asr/tests/test_funasr_backend_contract.sh

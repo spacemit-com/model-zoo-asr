@@ -8,7 +8,7 @@
 | -------- | -------------------------------------------------------------------- |
 | 部署方式 | **本地**（如 ONNX 推理）、**云端**（可扩展 HTTP/API 等）             |
 | 识别方式 | 文件/内存阻塞识别 `Call()`、`Recognize()`；流式识别 `Start()` + `SendAudioFrame()` + `Flush()` / `Stop()` |
-| 后端     | SenseVoice（本地 ONNX）、Zipformer CTC（本地 ONNX 流式）、Qwen3-ASR（llama-server） |
+| 后端     | SenseVoice（本地 ONNX）、Zipformer CTC（本地 ONNX 流式）、Fun-ASR / Qwen3-ASR（llama-server） |
 | 语言     | 中文、英文、日文、韩文、粤语、自动检测                               |
 | 接口     | C++（`include/asr_service.h`）、Python（`spacemit_asr`）             |
 
@@ -146,7 +146,37 @@ curl http://127.0.0.1:8063/health
 # 应返回 {"status":"ok"}
 ```
 
-#### 2.2.3 Zipformer 模型（本地 ONNX 流式）
+#### 2.2.3 Fun-ASR 模型（llama-server）
+
+Fun-ASR 使用 llama-server 的 OpenAI 兼容 transcription API。先按 2.2.2
+安装 `llama.cpp-tools-spacemit`，再下载模型：
+
+```bash
+mkdir -p ~/.cache/models/asr
+cd ~/.cache/models/asr
+wget https://archive.spacemit.com/spacemit-ai/model_zoo/asr/fun-asr-nano-2512-qq-q4km.tar.gz
+tar -xzf fun-asr-nano-2512-qq-q4km.tar.gz
+```
+
+启动服务：
+
+```bash
+MODEL_DIR=~/.cache/models/asr/fun-asr-nano-2512-qq-q4km
+
+SPACEMIT_EP_INTRA_THREAD_NUM=4 llama-server \
+    -m "$MODEL_DIR/qwen3-0.6b-q4km.gguf" \
+    --media-backend smt \
+    --smt-config-dir "$MODEL_DIR" \
+    --host 127.0.0.1 --port 8063 \
+    --alias funasr \
+    -t 4 -tb 4 -c 4096 \
+    --warmup --jinja
+```
+
+Fun-ASR backend 默认请求
+`http://127.0.0.1:8063/v1/audio/transcriptions`，模型 alias 为 `funasr`。
+
+#### 2.2.4 Zipformer 模型（本地 ONNX 流式）
 
 Zipformer CTC 是轻量级流式 ASR 模型，适合实时识别场景。
 
@@ -222,6 +252,15 @@ asr_file_demo ~/.cache/models/assets/audio/001_zh_daily_weather.wav --engine qwe
 asr_file_demo audio.wav --engine qwen3-asr --endpoint http://10.0.90.72:8063/v1/chat/completions
 ```
 
+**C++ 文件识别（Fun-ASR，需先启动 llama-server）：**
+
+```bash
+asr_file_demo ~/.cache/models/assets/audio/001_zh_daily_weather.wav --engine funasr
+# 指定远程服务器
+asr_file_demo audio.wav --engine funasr \
+  --endpoint http://10.0.90.72:8063/v1/audio/transcriptions
+```
+
 **Python 文件识别**（直接运行 `python python/examples/...` 前，需当前 Python 环境已安装 wheel，或设置 `PYTHONPATH` 指向 SDK 构建产物）：
 
 ```bash
@@ -264,6 +303,9 @@ export SPACEMIT_EP_DISABLE_OP_TYPE_FILTER="Conv"
 
 # Qwen3-ASR（需先启动 llama-server，见 2.2.2）
 ./bin/asr_file_demo ~/.cache/models/assets/audio/001_zh_daily_weather.wav --engine qwen3-asr
+
+# Fun-ASR（需先启动 llama-server，见 2.2.3）
+./bin/asr_file_demo ~/.cache/models/assets/audio/001_zh_daily_weather.wav --engine funasr
 ```
 
 **Python 文件识别：**
@@ -358,6 +400,7 @@ target_include_directories(your_target PRIVATE ${ASR_SOURCE_DIR}/include)
 | 识别文本为空或很短 | 输入音频过短、静音或采样率不匹配 | 用 `audio_demo play` 回放，确认 WAV 是 16kHz 有声内容。 |
 | 流式采集报设备错误 | 默认输入设备不符合预期 | 先运行 `asr_stream_demo -l`，再用 `-i <id>` 指定设备。 |
 | Zipformer 报 SpaceMIT EP/Conv 相关错误 | 当前 K3 + SpaceMIT EP 下 `Conv` 算子存在临时兼容问题 | 运行前设置 `SPACEMIT_EP_DISABLE_OP_TYPE_FILTER="Conv"`。 |
+| Fun-ASR 调用失败 | `llama-server` 未启动或 transcription endpoint 不正确 | 用 `/health` 确认服务状态，并检查 endpoint 是否以 `/v1/audio/transcriptions` 结尾。 |
 | Qwen3-ASR 调用失败 | `llama-server` 未启动或 endpoint 不正确 | 用 `curl http://127.0.0.1:8063/health` 确认服务状态。 |
 | Qwen3-ASR 启动失败或被 kill | 8G 内存板卡可能内存不足 | 检查系统内存；如必须在 8G 板卡上运行，先配置 swap 后再启动 `llama-server`。 |
 
@@ -406,6 +449,28 @@ target_include_directories(your_target PRIVATE ${ASR_SOURCE_DIR}/include)
 | Qwen3-ASR 0.6B | 8 | 2 个文件 x 3 轮 | 47331 ms | 7977 ms | 0.169 |
 | Qwen3-ASR 1.7B | 4 | 2 个文件 x 3 轮 | 47331 ms | 19883 ms | 0.420 |
 | Qwen3-ASR 1.7B | 8 | 2 个文件 x 3 轮 | 47331 ms | 15572 ms | 0.329 |
+
+### Fun-ASR Nano (Q4_K_M, llama-server, K3)
+
+测试环境：
+
+- 模型：`fun-asr-nano-2512-qq-q4km`
+- 系统组件：`llama.cpp-tools-spacemit 0.1.6`、`spacemit-onnxruntime 2.0.5`
+- llama-server：`-t 4 -tb 4 -c 4096 --warmup --jinja`
+- SpaceMIT EP：`SPACEMIT_EP_INTRA_THREAD_NUM=4`
+- SDK：从干净源码执行 `mm clean && mm -py -j4` 后生成的 `asr_file_demo`
+- 测试方式：服务健康检查通过后，运行 `asr_file_demo --engine funasr --rounds 2`
+- 未使用 CPU 绑核
+
+| 测试文件 | 语言 | 音频时长 | 第 1 轮处理时间 | 第 1 轮 RTF | 第 2 轮处理时间 | 第 2 轮 RTF |
+|----------|------|----------|-----------------|------------|-----------------|------------|
+| 004_zh_selling_sausages.wav | 中文 | 14158 ms | 3804 ms | 0.269 | 3793 ms | 0.268 |
+| 官方 en.mp3 | 英文 | 7176 ms | 1555 ms | 0.217 | 1561 ms | 0.217 |
+| 官方 ja.mp3 | 日文 | 7224 ms | 1706 ms | 0.236 | 1709 ms | 0.236 |
+| **每轮合计** | - | **28558 ms** | **7065 ms** | **0.247** | **7063 ms** | **0.247** |
+
+三条音频均成功返回对应语言的识别文本。以上 RTF 包含 SDK 文件读取、音频转换、
+HTTP multipart 传输和 llama-server 推理时间，不是单独的模型 kernel 耗时。
 
 ### Zipformer CTC (CPU, 4 线程)
 

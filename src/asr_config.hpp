@@ -141,8 +141,23 @@ struct ASRConfig {
         return config;
     }
 
-    /// @brief 创建FunASR云端识别配置
-    static ASRConfig funasrCloud(const std::string& api_key, const std::string& model_id = "fun-asr-realtime") {
+    /// @brief 创建Fun-ASR llama-server识别配置
+    static ASRConfig funasr(
+            const std::string& endpoint = "http://127.0.0.1:8063/v1/audio/transcriptions",
+            const std::string& model = "funasr",
+            int timeout = 60) {
+        ASRConfig config;
+        config.backend = BackendType::FUNASR;
+        config.extra_params["endpoint"] = endpoint;
+        config.extra_params["model"] = model;
+        config.extra_params["timeout"] = std::to_string(timeout);
+        return config;
+    }
+
+    /// @brief 保留旧 FunASR 云端配置入口；当前后端不实现该传输
+    static ASRConfig funasrCloud(
+            const std::string& api_key,
+            const std::string& model_id = "fun-asr-realtime") {
         ASRConfig config;
         config.backend = BackendType::FUNASR;
         config.api_key = api_key;
@@ -209,13 +224,13 @@ public:
             }
         }
 
-        // Qwen3-ASR is HTTP-based, no local model path needed
-
-        if (config.backend == BackendType::FUNASR) {
-            // 云端后端需要API配置
-            if (config.api_key.empty()) {
-                return ErrorInfo::error(ErrorCode::INVALID_CONFIG,
-                    "API key is required for cloud backend");
+        // The legacy cloud factory is retained for source compatibility only.
+        if (config.backend == BackendType::FUNASR && !config.api_endpoint.empty()) {
+            const auto endpoint = config.extra_params.find("endpoint");
+            if (endpoint == config.extra_params.end() || endpoint->second.empty()) {
+                return ErrorInfo::error(
+                    ErrorCode::INVALID_CONFIG,
+                    "FunASR cloud transport is not implemented; use ASRConfig::funasr()");
             }
         }
 

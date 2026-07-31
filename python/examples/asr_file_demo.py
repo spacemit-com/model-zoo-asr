@@ -18,7 +18,7 @@ def main():
     parser = argparse.ArgumentParser(description='ASR 静态文件识别')
     parser.add_argument('file', nargs='?', help='要识别的音频文件 (16kHz WAV)')
     parser.add_argument('--engine', default='sensevoice',
-                        choices=['sensevoice', 'zipformer', 'qwen3-asr'],
+                        choices=['sensevoice', 'zipformer', 'funasr', 'qwen3-asr'],
                         help='识别引擎 (默认: sensevoice)')
     parser.add_argument('--model-dir', '-m', default=None,
                         help='本地模型目录 (SenseVoice/Zipformer 可选)')
@@ -34,12 +34,12 @@ def main():
                         help='重复识别轮次 (默认: 1)')
     parser.add_argument('--enable-emotion', action='store_true',
                         help='启用 SenseVoice 情绪识别 (默认关闭)')
-    parser.add_argument('--endpoint', default='http://127.0.0.1:8063/v1/chat/completions',
-                        help='Qwen3-ASR llama-server URL')
-    parser.add_argument('--model', default='qwen3-asr',
-                        help='Qwen3-ASR model tag (默认: qwen3-asr)')
+    parser.add_argument('--endpoint', default=None,
+                        help='Fun-ASR/Qwen3-ASR llama-server URL')
+    parser.add_argument('--model', default=None,
+                        help='Fun-ASR/Qwen3-ASR model tag')
     parser.add_argument('--timeout', type=int, default=60,
-                        help='Qwen3-ASR 请求超时秒数 (默认: 60)')
+                        help='llama-server 请求超时秒数 (默认: 60)')
 
     args = parser.parse_args()
 
@@ -86,9 +86,18 @@ def main():
     elif args.engine == 'zipformer':
         config = spacemit_asr.Config.zipformer(
             args.model_dir or '~/.cache/models/asr/zipformer')
+    elif args.engine == 'funasr':
+        config = spacemit_asr.Config.funasr(
+            endpoint=args.endpoint or
+            'http://127.0.0.1:8063/v1/audio/transcriptions',
+            model=args.model or 'funasr',
+            timeout=args.timeout)
     else:
         config = spacemit_asr.Config.qwen3_asr(
-            endpoint=args.endpoint, model=args.model, timeout=args.timeout)
+            endpoint=args.endpoint or
+            'http://127.0.0.1:8063/v1/chat/completions',
+            model=args.model or 'qwen3-asr',
+            timeout=args.timeout)
 
     config.language = lang_map[args.language]
     config.punctuation_enabled = True
@@ -107,7 +116,7 @@ def main():
     with spacemit_asr.Engine(config) as engine:
         import time
         import numpy as np
-        if args.engine != 'qwen3-asr':
+        if args.engine not in ('funasr', 'qwen3-asr'):
             print(">>> Warmup...")
             silence = np.zeros(8000, dtype=np.float32)
             t0 = time.monotonic()

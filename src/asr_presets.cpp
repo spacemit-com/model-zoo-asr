@@ -39,6 +39,16 @@ static const std::map<std::string, std::function<AsrConfig()>>& getPresets() {
             config.model = "qwen3-asr";
             return config;
         }},
+        {"gemma4-asr", []() {
+            AsrConfig config;
+            config.engine = "gemma4-asr";
+            config.model_dir = "";
+            config.provider = "cpu";
+            config.endpoint = "http://127.0.0.1:8063/v1/audio/transcriptions";
+            config.model = "gemma4-asr";
+            config.task = "transcribe";
+            return config;
+        }},
         {"zipformer", []() {
             AsrConfig config;
             config.engine = "zipformer";

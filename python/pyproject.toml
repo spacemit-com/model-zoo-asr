@@ -8,9 +8,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "spacemit_asr"
-version = "1.0.2"
+version = "1.0.4"
 description = "Space ASR (Automatic Speech Recognition) Python bindings"
-readme = "README.md"
+readme = {text = "Python bindings for SpaceMIT ASR with SenseVoice, Zipformer CTC, Qwen3-ASR, Fun-ASR Nano, and Gemma4 ASR backends.", content-type = "text/markdown"}
 requires-python = ">=3.8"
 license = {text = "Apache-2.0"}
 authors = [

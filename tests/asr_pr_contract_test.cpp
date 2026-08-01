@@ -33,6 +33,7 @@ void verify_public_presets() {
     require(contains(presets, "sensevoice"), "sensevoice preset must be advertised");
     require(contains(presets, "funasr"), "funasr preset must be advertised");
     require(contains(presets, "qwen3-asr"), "qwen3-asr preset must be advertised");
+    require(contains(presets, "gemma4-asr"), "gemma4-asr preset must be advertised");
     require(contains(presets, "zipformer"), "zipformer preset must be advertised");
 
     const auto sensevoice = SpacemiT::AsrConfig::Preset("sensevoice");
@@ -55,6 +56,18 @@ void verify_public_presets() {
     require(qwen3.endpoint.find("/v1/chat/completions") != std::string::npos,
             "qwen3 preset must keep the chat completions endpoint");
     require(qwen3.model == "qwen3-asr", "qwen3 preset must keep the qwen3-asr model alias");
+
+    const auto gemma4 = SpacemiT::AsrConfig::Preset("gemma4-asr");
+    require(gemma4.engine == "gemma4-asr",
+            "gemma4 preset must select gemma4-asr engine");
+    require(gemma4.model_dir.empty(),
+            "gemma4 preset must not require a local model directory");
+    require(gemma4.endpoint.find("/v1/audio/transcriptions") != std::string::npos,
+            "gemma4 preset must use the transcription endpoint");
+    require(gemma4.model == "gemma4-asr",
+            "gemma4 preset must use the gemma4-asr model alias");
+    require(gemma4.task == "transcribe",
+            "gemma4 preset must default to transcription");
 
     const auto zipformer = SpacemiT::AsrConfig::Preset("zipformer");
     require(zipformer.engine == "zipformer", "zipformer preset must select zipformer engine");
@@ -80,6 +93,32 @@ void verify_internal_config_contract() {
             "funasr config must use the transcription endpoint");
     require(asr::ConfigValidator::validate(funasr).isOk(),
             "valid funasr server config must pass validation");
+
+    const auto gemma4 = asr::ASRConfig::gemma4Asr();
+    require(gemma4.backend == asr::BackendType::GEMMA4_ASR,
+            "gemma4 config must select GEMMA4_ASR backend");
+    require(gemma4.task == asr::RecognitionTask::TRANSCRIBE,
+            "gemma4 config must default to transcription");
+    require(gemma4.extra_params.at("endpoint").find("/v1/audio/transcriptions") !=
+                std::string::npos,
+            "gemma4 config must use the transcription endpoint");
+    require(asr::ConfigValidator::validate(gemma4).isOk(),
+            "valid gemma4 server config must pass validation");
+
+    const auto translation = gemma4.withTask(asr::RecognitionTask::TRANSLATE);
+    require(gemma4.task == asr::RecognitionTask::TRANSCRIBE,
+            "withTask must not mutate the source config");
+    require(translation.task == asr::RecognitionTask::TRANSLATE,
+            "withTask must set translation on the returned config");
+    require(asr::ConfigValidator::validate(translation).isOk(),
+            "gemma4 translation config must pass validation");
+
+    const auto unsupported_translation =
+        funasr.withTask(asr::RecognitionTask::TRANSLATE);
+    require(
+        asr::ConfigValidator::validate(unsupported_translation).code ==
+            asr::ErrorCode::INVALID_CONFIG,
+        "translation must be rejected by backends without translation support");
 
     const auto legacy_funasr = asr::ASRConfig::funasrCloud("test-token");
     require(legacy_funasr.backend == asr::BackendType::FUNASR,

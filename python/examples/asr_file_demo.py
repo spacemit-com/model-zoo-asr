@@ -16,9 +16,10 @@ import argparse
 
 def main():
     parser = argparse.ArgumentParser(description='ASR 静态文件识别')
-    parser.add_argument('file', nargs='?', help='要识别的音频文件 (16kHz WAV)')
+    parser.add_argument('file', nargs='?', help='要识别的音频文件（例如 WAV 或 MP3）')
     parser.add_argument('--engine', default='sensevoice',
-                        choices=['sensevoice', 'zipformer', 'funasr', 'qwen3-asr'],
+                        choices=['sensevoice', 'zipformer', 'funasr', 'qwen3-asr',
+                                 'gemma4-asr'],
                         help='识别引擎 (默认: sensevoice)')
     parser.add_argument('--model-dir', '-m', default=None,
                         help='本地模型目录 (SenseVoice/Zipformer 可选)')
@@ -35,11 +36,14 @@ def main():
     parser.add_argument('--enable-emotion', action='store_true',
                         help='启用 SenseVoice 情绪识别 (默认关闭)')
     parser.add_argument('--endpoint', default=None,
-                        help='Fun-ASR/Qwen3-ASR llama-server URL')
+                        help='llama-server URL')
     parser.add_argument('--model', default=None,
-                        help='Fun-ASR/Qwen3-ASR model tag')
+                        help='llama-server model tag')
     parser.add_argument('--timeout', type=int, default=60,
                         help='llama-server 请求超时秒数 (默认: 60)')
+    parser.add_argument('--task', default='transcribe',
+                        choices=['transcribe', 'translate'],
+                        help='Gemma4 任务 (默认: transcribe)')
 
     args = parser.parse_args()
 
@@ -92,12 +96,19 @@ def main():
             'http://127.0.0.1:8063/v1/audio/transcriptions',
             model=args.model or 'funasr',
             timeout=args.timeout)
-    else:
+    elif args.engine == 'qwen3-asr':
         config = spacemit_asr.Config.qwen3_asr(
             endpoint=args.endpoint or
             'http://127.0.0.1:8063/v1/chat/completions',
             model=args.model or 'qwen3-asr',
             timeout=args.timeout)
+    else:
+        config = spacemit_asr.Config.gemma4_asr(
+            endpoint=args.endpoint or
+            'http://127.0.0.1:8063/v1/audio/transcriptions',
+            model=args.model or 'gemma4-asr',
+            timeout=args.timeout,
+            task=args.task)
 
     config.language = lang_map[args.language]
     config.punctuation_enabled = True
@@ -109,6 +120,8 @@ def main():
     print(f"\n文件: {args.file}")
     print(f"引擎: {args.engine}")
     print(f"语言: {args.language}")
+    if args.engine == 'gemma4-asr':
+        print(f"任务: {args.task}")
     print(f"Provider: {args.provider}")
     print(f"情绪识别: {'启用' if args.enable_emotion else '禁用'}")
     print("正在识别...\n")
@@ -116,7 +129,7 @@ def main():
     with spacemit_asr.Engine(config) as engine:
         import time
         import numpy as np
-        if args.engine not in ('funasr', 'qwen3-asr'):
+        if args.engine not in ('funasr', 'qwen3-asr', 'gemma4-asr'):
             print(">>> Warmup...")
             silence = np.zeros(8000, dtype=np.float32)
             t0 = time.monotonic()

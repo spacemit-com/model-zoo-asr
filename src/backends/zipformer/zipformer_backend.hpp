@@ -34,7 +34,7 @@ public:
 
     BackendType getType() const override { return BackendType::ZIPFORMER; }
     std::string getName() const override { return "Zipformer"; }
-    std::string getVersion() const override { return "1.0.2"; }
+    std::string getVersion() const override { return "1.0.4"; }
 
     bool supportsStreaming() const override { return true; }
 

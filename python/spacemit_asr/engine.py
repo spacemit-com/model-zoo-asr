@@ -30,6 +30,15 @@ class Language(Enum):
         return self.value
 
 
+class RecognitionTask(Enum):
+    """Recognition task for backends that support speech translation."""
+    TRANSCRIBE = _asr.RecognitionTask.TRANSCRIBE
+    TRANSLATE = _asr.RecognitionTask.TRANSLATE
+
+    def to_native(self):
+        return self.value
+
+
 class BackendType(Enum):
     """Supported ASR backends"""
     SENSEVOICE = _asr.BackendType.SENSEVOICE
@@ -38,6 +47,7 @@ class BackendType(Enum):
     PARAFORMER = _asr.BackendType.PARAFORMER
     QWEN3_ASR = _asr.BackendType.QWEN3_ASR
     ZIPFORMER = _asr.BackendType.ZIPFORMER
+    GEMMA4_ASR = _asr.BackendType.GEMMA4_ASR
     CUSTOM = _asr.BackendType.CUSTOM
 
     def to_native(self):
@@ -58,6 +68,8 @@ _BACKEND_ALIASES = {
     "qwen3-asr": BackendType.QWEN3_ASR,
     "qwen3_asr": BackendType.QWEN3_ASR,
     "zipformer": BackendType.ZIPFORMER,
+    "gemma4-asr": BackendType.GEMMA4_ASR,
+    "gemma4_asr": BackendType.GEMMA4_ASR,
     "custom": BackendType.CUSTOM,
 }
 
@@ -74,6 +86,20 @@ def _normalize_backend(backend: Union[BackendType, str]) -> BackendType:
     raise ValueError(f"Unsupported ASR backend: {backend}")
 
 
+def _normalize_task(task: Union[RecognitionTask, str]) -> RecognitionTask:
+    if isinstance(task, RecognitionTask):
+        return task
+    if isinstance(task, _asr.RecognitionTask):
+        return RecognitionTask(task)
+    if isinstance(task, str):
+        key = task.strip().lower()
+        if key == "transcribe":
+            return RecognitionTask.TRANSCRIBE
+        if key == "translate":
+            return RecognitionTask.TRANSLATE
+    raise ValueError(f"Unsupported ASR task: {task}")
+
+
 class Config:
     """ASR Configuration"""
 
@@ -85,6 +111,7 @@ class Config:
         endpoint: Optional[str] = None,
         model: Optional[str] = None,
         timeout: int = 60,
+        task: Union[RecognitionTask, str] = RecognitionTask.TRANSCRIBE,
     ):
         """
         Create ASR configuration.
@@ -93,11 +120,18 @@ class Config:
             model_dir: Path to local model directory
             enable_emotion: Whether to enable SenseVoice emotion recognition
             backend: Backend name or BackendType. Defaults to SenseVoice.
-            endpoint: llama-server endpoint for Fun-ASR or Qwen3-ASR.
+            endpoint: llama-server endpoint for Fun-ASR, Qwen3-ASR, or Gemma4 ASR.
             model: llama-server model tag.
             timeout: llama-server request timeout in seconds.
+            task: Gemma4 task, either transcribe or translate.
         """
         backend_type = _normalize_backend(backend)
+        task_type = _normalize_task(task)
+        if (task_type == RecognitionTask.TRANSLATE and
+                backend_type != BackendType.GEMMA4_ASR):
+            raise ValueError(
+                "Translation task is only supported by the Gemma4 ASR backend"
+            )
         if backend_type == BackendType.SENSEVOICE:
             model_dir = model_dir or "~/.cache/models/asr/sensevoice"
             self._config = _asr.ASRConfig.sensevoice(str(Path(model_dir).expanduser()))
@@ -115,6 +149,13 @@ class Config:
                 endpoint or "http://127.0.0.1:8063/v1/chat/completions",
                 model or "qwen3-asr",
                 timeout,
+            )
+        elif backend_type == BackendType.GEMMA4_ASR:
+            self._config = _asr.ASRConfig.gemma4_asr(
+                endpoint or "http://127.0.0.1:8063/v1/audio/transcriptions",
+                model or "gemma4-asr",
+                timeout,
+                task_type.to_native(),
             )
         else:
             raise ValueError(
@@ -161,6 +202,18 @@ class Config:
         return cls(backend=BackendType.QWEN3_ASR, endpoint=endpoint,
                    model=model, timeout=timeout)
 
+    @classmethod
+    def gemma4_asr(
+        cls,
+        endpoint: str = "http://127.0.0.1:8063/v1/audio/transcriptions",
+        model: str = "gemma4-asr",
+        timeout: int = 60,
+        task: Union[RecognitionTask, str] = RecognitionTask.TRANSCRIBE,
+    ) -> "Config":
+        """Create Gemma4 speech transcription or English translation configuration."""
+        return cls(backend=BackendType.GEMMA4_ASR, endpoint=endpoint,
+                   model=model, timeout=timeout, task=task)
+
     @property
     def backend(self) -> BackendType:
         """Get selected ASR backend."""
@@ -174,6 +227,15 @@ class Config:
     @language.setter
     def language(self, value: Language):
         self._config.language = value.to_native()
+
+    @property
+    def task(self) -> RecognitionTask:
+        """Get/set speech recognition task."""
+        return RecognitionTask(self._config.task)
+
+    @task.setter
+    def task(self, value: Union[RecognitionTask, str]):
+        self._config.task = _normalize_task(value).to_native()
 
     @property
     def sample_rate(self) -> int:

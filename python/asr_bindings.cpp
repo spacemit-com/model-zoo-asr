@@ -118,6 +118,11 @@ PYBIND11_MODULE(_spacemit_asr, m) {
         .value("STREAMING", asr::RecognitionMode::STREAMING, "Real-time streaming")
         .export_values();
 
+    py::enum_<asr::RecognitionTask>(m, "RecognitionTask", "Recognition tasks")
+        .value("TRANSCRIBE", asr::RecognitionTask::TRANSCRIBE, "Transcribe speech in its source language")
+        .value("TRANSLATE", asr::RecognitionTask::TRANSLATE, "Translate speech into English")
+        .export_values();
+
     py::enum_<asr::BackendType>(m, "BackendType", "ASR backend types")
         .value("SENSEVOICE", asr::BackendType::SENSEVOICE, "SenseVoice (local ONNX)")
         .value("FUNASR", asr::BackendType::FUNASR, "Fun-ASR (llama-server HTTP)")
@@ -125,6 +130,7 @@ PYBIND11_MODULE(_spacemit_asr, m) {
         .value("PARAFORMER", asr::BackendType::PARAFORMER, "Paraformer")
         .value("QWEN3_ASR", asr::BackendType::QWEN3_ASR, "Qwen3-ASR (llama-server HTTP)")
         .value("ZIPFORMER", asr::BackendType::ZIPFORMER, "Zipformer CTC (local ONNX)")
+        .value("GEMMA4_ASR", asr::BackendType::GEMMA4_ASR, "Gemma4 ASR/translation (llama-server HTTP)")
         .value("CUSTOM", asr::BackendType::CUSTOM, "Custom backend")
         .export_values();
 
@@ -248,6 +254,7 @@ PYBIND11_MODULE(_spacemit_asr, m) {
         .def_readwrite("channels", &asr::ASRConfig::channels)
         // Recognition mode
         .def_readwrite("mode", &asr::ASRConfig::mode)
+        .def_readwrite("task", &asr::ASRConfig::task)
         // Language
         .def_readwrite("language", &asr::ASRConfig::language)
         .def_readwrite("language_hints", &asr::ASRConfig::language_hints)
@@ -280,6 +287,13 @@ PYBIND11_MODULE(_spacemit_asr, m) {
                     py::arg("model") = "funasr",
                     py::arg("timeout") = 60,
                     "Create Fun-ASR llama-server configuration")
+        .def_static("gemma4_asr", &asr::ASRConfig::gemma4Asr,
+                    py::arg("endpoint") =
+                        "http://127.0.0.1:8063/v1/audio/transcriptions",
+                    py::arg("model") = "gemma4-asr",
+                    py::arg("timeout") = 60,
+                    py::arg("task") = asr::RecognitionTask::TRANSCRIBE,
+                    "Create Gemma4 ASR llama-server configuration")
         .def_static("funasr_cloud", &asr::ASRConfig::funasrCloud,
                     py::arg("api_key"),
                     py::arg("model_id") = "fun-asr-realtime",
@@ -303,6 +317,9 @@ PYBIND11_MODULE(_spacemit_asr, m) {
         .def("with_language", &asr::ASRConfig::withLanguage,
             py::arg("language"),
             "Set language")
+        .def("with_task", &asr::ASRConfig::withTask,
+            py::arg("task"),
+            "Set recognition task")
         .def("without_vad", &asr::ASRConfig::withoutVAD, "Disable VAD")
         .def("with_word_timestamps", &asr::ASRConfig::withWordTimestamps,
             "Enable word timestamps")

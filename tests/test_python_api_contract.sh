@@ -20,10 +20,13 @@ source_root = module_dir / "python"
 bindings = (module_dir / "python/asr_bindings.cpp").read_text()
 assert '.value("FUNASR"' in bindings
 assert '.value("QWEN3_ASR"' in bindings
+assert '.value("GEMMA4_ASR"' in bindings
+assert 'RecognitionTask' in bindings
 assert '.def_static("zipformer"' in bindings
 assert '.def_static("funasr"' in bindings
 assert '.def_static("funasr_cloud"' in bindings
 assert '.def_static("qwen3_asr"' in bindings
+assert '.def_static("gemma4_asr"' in bindings
 
 
 class Language(enum.Enum):
@@ -43,6 +46,12 @@ class BackendType(enum.Enum):
     QWEN3_ASR = 4
     ZIPFORMER = 5
     CUSTOM = 6
+    GEMMA4_ASR = 7
+
+
+class RecognitionTask(enum.Enum):
+    TRANSCRIBE = 0
+    TRANSLATE = 1
 
 
 class NativeConfig:
@@ -52,6 +61,7 @@ class NativeConfig:
         self.sample_rate = 16000
         self.punctuation_enabled = True
         self.enable_emotion = False
+        self.task = RecognitionTask.TRANSCRIBE
         self.extra_params = {}
 
     @staticmethod
@@ -90,6 +100,18 @@ class NativeConfig:
         }
         return config
 
+    @staticmethod
+    def gemma4_asr(endpoint, model, timeout, task):
+        config = NativeConfig()
+        config.backend = BackendType.GEMMA4_ASR
+        config.task = task
+        config.extra_params = {
+            "endpoint": endpoint,
+            "model": model,
+            "timeout": str(timeout),
+        }
+        return config
+
 
 class NativeEngine:
     @staticmethod
@@ -99,6 +121,7 @@ class NativeEngine:
             BackendType.FUNASR,
             BackendType.QWEN3_ASR,
             BackendType.ZIPFORMER,
+            BackendType.GEMMA4_ASR,
         ]
 
     @staticmethod
@@ -108,6 +131,7 @@ class NativeEngine:
 
 fake_asr = types.SimpleNamespace(
     Language=Language,
+    RecognitionTask=RecognitionTask,
     BackendType=BackendType,
     ASRConfig=NativeConfig,
     ASREngine=NativeEngine,
@@ -136,12 +160,34 @@ qwen = spacemit_asr.Config.qwen3_asr(
 assert qwen.backend == spacemit_asr.BackendType.QWEN3_ASR
 assert qwen._config.extra_params["timeout"] == "7"
 
+gemma = spacemit_asr.Config.gemma4_asr(task="translate", timeout=9)
+assert gemma.backend == spacemit_asr.BackendType.GEMMA4_ASR
+assert gemma.task == spacemit_asr.RecognitionTask.TRANSLATE
+assert gemma._config.extra_params["endpoint"].endswith("/v1/audio/transcriptions")
+assert gemma._config.extra_params["model"] == "gemma4-asr"
+assert gemma._config.extra_params["timeout"] == "9"
+
+try:
+    spacemit_asr.Config.funasr(task="translate")
+except TypeError:
+    pass
+else:
+    raise AssertionError("Fun-ASR factory must not accept a translation task")
+
+try:
+    spacemit_asr.Config(backend="funasr", task="translate")
+except ValueError as error:
+    assert "only supported by the Gemma4" in str(error)
+else:
+    raise AssertionError("non-Gemma backend must reject translation")
+
 backends = spacemit_asr.Engine.get_available_backends()
 assert backends == [
     spacemit_asr.BackendType.SENSEVOICE,
     spacemit_asr.BackendType.FUNASR,
     spacemit_asr.BackendType.QWEN3_ASR,
     spacemit_asr.BackendType.ZIPFORMER,
+    spacemit_asr.BackendType.GEMMA4_ASR,
 ]
 
 print("PASS --python-api-contract")

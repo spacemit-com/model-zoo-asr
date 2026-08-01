@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "funasr_backend.hpp"
+#include "gemma4_asr_backend.hpp"
 
 #include <chrono>
 #include <exception>
@@ -18,71 +18,65 @@
 
 namespace asr {
 
-FunASRBackend::FunASRBackend() = default;
-FunASRBackend::~FunASRBackend() {
-    shutdown();
-}
-
-ErrorInfo FunASRBackend::initialize(const ASRConfig& config) {
+ErrorInfo Gemma4ASRBackend::initialize(const ASRConfig& config) {
     if (initialized_.load()) {
         return ErrorInfo::error(ErrorCode::ALREADY_STARTED, "Already initialized");
     }
 
     config_ = config;
-    if (!config_.api_endpoint.empty()) {
-        const auto endpoint = config_.extra_params.find("endpoint");
-        if (endpoint == config_.extra_params.end() || endpoint->second.empty()) {
-            return ErrorInfo::error(
-                ErrorCode::INVALID_CONFIG,
-                "FunASR cloud transport is not implemented; use ASRConfig::funasr()");
-        }
-    }
-
     auto get = [&](const std::string& key, const std::string& fallback) {
         const auto it = config_.extra_params.find(key);
         return it != config_.extra_params.end() && !it->second.empty() ? it->second : fallback;
     };
 
     endpoint_ = get("endpoint", "http://127.0.0.1:8063/v1/audio/transcriptions");
-    model_ = get("model", "funasr");
+    model_ = get("model", "gemma4-asr");
     try {
         const std::string timeout = get("timeout", "60");
         size_t parsed = 0;
         timeout_sec_ = std::stoll(timeout, &parsed);
         if (parsed != timeout.size()) {
-            return ErrorInfo::error(ErrorCode::INVALID_CONFIG, "Invalid Fun-ASR timeout");
+            return ErrorInfo::error(ErrorCode::INVALID_CONFIG, "Invalid Gemma4 ASR timeout");
         }
     } catch (const std::exception&) {
-        return ErrorInfo::error(ErrorCode::INVALID_CONFIG, "Invalid Fun-ASR timeout");
+        return ErrorInfo::error(ErrorCode::INVALID_CONFIG, "Invalid Gemma4 ASR timeout");
     }
     if (timeout_sec_ <= 0 ||
         timeout_sec_ > static_cast<int64_t>(std::numeric_limits<long>::max())) {
-        return ErrorInfo::error(ErrorCode::INVALID_CONFIG, "Fun-ASR timeout must be positive");
+        return ErrorInfo::error(ErrorCode::INVALID_CONFIG, "Gemma4 ASR timeout must be positive");
     }
 
-    std::cout << "[FunASR] endpoint=" << endpoint_
+    std::cout << "[Gemma4ASR] endpoint=" << endpoint_
         << " model=" << model_
+        << " task=" << recognitionTaskToString(config_.task)
         << " timeout=" << timeout_sec_ << "s" << std::endl;
     initialized_.store(true);
     return ErrorInfo::ok();
 }
 
-void FunASRBackend::shutdown() {
+void Gemma4ASRBackend::shutdown() {
     initialized_.store(false);
 }
 
-ErrorInfo FunASRBackend::transcribe(const std::vector<float>& samples, std::string& out_text) {
+std::string Gemma4ASRBackend::prompt() const {
+    if (config_.task == RecognitionTask::TRANSLATE) {
+        return "Translate this audio into English. Return only the English translation.";
+    }
+    return "Transcribe this audio. Return only the transcription.";
+}
+
+ErrorInfo Gemma4ASRBackend::request(
+        const std::vector<float>& samples, std::string& out_text) {
     llama_audio::TranscriptionRequest request;
     request.endpoint = endpoint_;
     request.model = model_;
-    request.language = config_.language == Language::AUTO
-        ? std::string()
-        : languageToString(config_.language);
+    request.prompt = prompt();
     request.timeout_sec = timeout_sec_;
     return llama_audio::postTranscription(samples, config_.sample_rate, request, out_text);
 }
 
-ErrorInfo FunASRBackend::recognize(const AudioChunk& audio, RecognitionResult& result) {
+ErrorInfo Gemma4ASRBackend::recognize(
+        const AudioChunk& audio, RecognitionResult& result) {
     if (!initialized_.load()) {
         return ErrorInfo::error(ErrorCode::NOT_INITIALIZED, "Not initialized");
     }
@@ -103,18 +97,18 @@ ErrorInfo FunASRBackend::recognize(const AudioChunk& audio, RecognitionResult& r
     }
 
     std::string text;
-    const ErrorInfo error = transcribe(model_audio, text);
+    const ErrorInfo error = request(model_audio, text);
     if (!error.isOk()) {
         return error;
     }
 
     const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - start).count();
-    result = buildResult(text, audio_ms, elapsed);
+    result = llama_audio::buildResult(text, audio_ms, elapsed, config_.language);
     return ErrorInfo::ok();
 }
 
-ErrorInfo FunASRBackend::recognizeFile(
+ErrorInfo Gemma4ASRBackend::recognizeFile(
         const std::string& file_path, RecognitionResult& result) {
     if (!initialized_.load()) {
         return ErrorInfo::error(ErrorCode::NOT_INITIALIZED, "Not initialized");
@@ -137,23 +131,15 @@ ErrorInfo FunASRBackend::recognizeFile(
     }
 
     std::string text;
-    error = transcribe(model_audio, text);
+    error = request(model_audio, text);
     if (!error.isOk()) {
         return error;
     }
 
     const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - start).count();
-    result = buildResult(text, audio_ms, elapsed);
+    result = llama_audio::buildResult(text, audio_ms, elapsed, config_.language);
     return ErrorInfo::ok();
-}
-
-RecognitionResult FunASRBackend::buildResult(
-        const std::string& text,
-        int64_t audio_duration_ms,
-        int64_t processing_time_ms) const {
-    return llama_audio::buildResult(
-        text, audio_duration_ms, processing_time_ms, config_.language);
 }
 
 }  // namespace asr

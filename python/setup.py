@@ -96,7 +96,7 @@ class CMakeBuild(build_ext):
 
 # Read version from C++ header
 def get_version():
-    return "1.0.2"
+    return "1.0.4"
 
 
 # Read long description
@@ -143,4 +143,3 @@ setup(
     ],
     keywords="asr speech recognition sensevoice",
 )
-

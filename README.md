@@ -8,7 +8,7 @@
 | -------- | -------------------------------------------------------------------- |
 | 部署方式 | **本地**（如 ONNX 推理）、**云端**（可扩展 HTTP/API 等）             |
 | 识别方式 | 文件/内存阻塞识别 `Call()`、`Recognize()`；流式识别 `Start()` + `SendAudioFrame()` + `Flush()` / `Stop()` |
-| 后端     | SenseVoice（本地 ONNX）、Zipformer CTC（本地 ONNX 流式）、Fun-ASR / Qwen3-ASR（llama-server） |
+| 后端     | SenseVoice（本地 ONNX）、Zipformer CTC（本地 ONNX 流式）、Fun-ASR / Qwen3-ASR / Gemma4 ASR（llama-server） |
 | 语言     | 中文、英文、日文、韩文、粤语、自动检测                               |
 | 接口     | C++（`include/asr_service.h`）、Python（`spacemit_asr`）             |
 
@@ -176,7 +176,51 @@ SPACEMIT_EP_INTRA_THREAD_NUM=4 llama-server \
 Fun-ASR backend 默认请求
 `http://127.0.0.1:8063/v1/audio/transcriptions`，模型 alias 为 `funasr`。
 
-#### 2.2.4 Zipformer 模型（本地 ONNX 流式）
+#### 2.2.4 Gemma4 ASR 模型（llama-server）
+
+Gemma4 ASR 同时支持原语言转写和外语语音翻译为英文。需要
+`llama.cpp-tools-spacemit 0.1.7` 或更新版本。
+
+如系统软件源尚未提供 0.1.7，可直接使用 release 包：
+
+```bash
+mkdir -p ~/.cache/releases/llama.cpp/v0.1.7
+cd ~/.cache/releases/llama.cpp/v0.1.7
+wget https://github.com/spacemit-com/llama.cpp/releases/download/v0.1.7/spacemit-llama.cpp.riscv64.0.1.7.tar.gz
+tar -xzf spacemit-llama.cpp.riscv64.0.1.7.tar.gz
+RUNTIME=$PWD/spacemit-llama.cpp.riscv64.0.1.7
+export PATH="$RUNTIME/bin:$PATH"
+export LD_LIBRARY_PATH="$RUNTIME/lib:/usr/lib:$LD_LIBRARY_PATH"
+```
+
+```bash
+mkdir -p ~/.cache/models/asr
+cd ~/.cache/models/asr
+wget https://archive.spacemit.com/spacemit-ai/model_zoo/asr/gemma4-asr-E2B-q40.tar.gz
+tar -xzf gemma4-asr-E2B-q40.tar.gz
+```
+
+启动服务：
+
+```bash
+MODEL_DIR=~/.cache/models/asr/gemma4-asr-E2B-q40
+
+llama-server \
+    -m "$MODEL_DIR/gemma-4-E2B-it-Q4_0-plproj-Q4_0-combined.gguf" \
+    --media-backend smt \
+    --smt-config-dir "$MODEL_DIR" \
+    --host 127.0.0.1 --port 8063 \
+    --alias gemma4-asr \
+    -t 8 -tb 8 -c 4096 \
+    --warmup --jinja --reasoning off \
+    --no-cache-prompt
+```
+
+`--reasoning off` 用于确保输出 token 预算全部用于最终转写或翻译文本。
+当前两种任务均调用 `/v1/audio/transcriptions`，由 ASR 组件通过请求中的
+`prompt` 区分；`translate` 任务首版固定输出英文。
+
+#### 2.2.5 Zipformer 模型（本地 ONNX 流式）
 
 Zipformer CTC 是轻量级流式 ASR 模型，适合实时识别场景。
 
@@ -195,20 +239,50 @@ tar -xzf zipformer.tar.gz
 
 ```bash
 export SPACEMIT_EP_DISABLE_OP_TYPE_FILTER="Conv"
-./build/bin/asr_file_demo audio.wav --engine zipformer
+./build/bin/asr_file_demo ~/.cache/models/assets/audio/001_zh_daily_weather.wav --engine zipformer
 ```
 
-### 2.3. 下载测试音频
+### 2.3. 下载测试资源
 
-建议先下载一段示例音频用于快速验证（16kHz 单声道 wav 更佳）：
+本文示例和性能测试统一使用下列公开音频：
+
+| 文件名 | 语言 | 主要用途 |
+|--------|------|----------|
+| `001_zh_daily_weather.wav` | 中文 | SenseVoice、Zipformer、Qwen3-ASR、Gemma4 ASR 快速转写 |
+| `002_en_daily_weather.wav` | 英文 | SenseVoice 英文转写 |
+| `003_zh_en_search.wav` | 中英混合 | SenseVoice 中英混合转写 |
+| `004_zh_selling_sausages.wav` | 中文 | 各 ASR 后端长音频转写和性能测试 |
+| `022_zh_funasr_sample.mp3` | 中文 | Fun-ASR 官方样例 |
+| `023_en_funasr_sample.mp3` | 英文 | Fun-ASR 官方样例 |
+| `024_ja_funasr_sample.mp3` | 日文 | Fun-ASR 转写、Gemma4 ASR 日语转英文 |
+| `025_ko_funasr_sample.mp3` | 韩文 | Gemma4 ASR 韩语转英文 |
+| `026_yue_funasr_sample.mp3` | 粤语 | Gemma4 ASR 粤语转英文 |
+
+`022` 至 `026` 来自
+[Fun-ASR-Nano-2512 官方 example 目录](https://huggingface.co/FunAudioLLM/Fun-ASR-Nano-2512/tree/main/example)。
+
+一次性下载本文使用的测试资源：
 
 ```bash
 mkdir -p ~/.cache/models/assets/audio
 cd ~/.cache/models/assets/audio
-wget https://archive.spacemit.com/spacemit-ai/model_zoo/assets/audio/001_zh_daily_weather.wav
+AUDIO_BASE=https://archive.spacemit.com/spacemit-ai/model_zoo/assets/audio
+for file in \
+    001_zh_daily_weather.wav \
+    002_en_daily_weather.wav \
+    003_zh_en_search.wav \
+    004_zh_selling_sausages.wav \
+    022_zh_funasr_sample.mp3 \
+    023_en_funasr_sample.mp3 \
+    024_ja_funasr_sample.mp3 \
+    025_ko_funasr_sample.mp3 \
+    026_yue_funasr_sample.mp3
+do
+    wget -nc "$AUDIO_BASE/$file"
+done
 ```
 
-更多音频资源可在 `https://archive.spacemit.com/spacemit-ai/model_zoo/assets/audio` 按需下载。
+更多音频资源可在 [ASR 测试音频目录](https://archive.spacemit.com/spacemit-ai/model_zoo/assets/audio/) 按需下载。
 
 ### 2.4. 测试
 
@@ -248,23 +322,38 @@ asr_file_demo ~/.cache/models/assets/audio/001_zh_daily_weather.wav --engine zip
 
 ```bash
 asr_file_demo ~/.cache/models/assets/audio/001_zh_daily_weather.wav --engine qwen3-asr
-# 指定远程服务器
-asr_file_demo audio.wav --engine qwen3-asr --endpoint http://10.0.90.72:8063/v1/chat/completions
+# 指定远程服务器（将 asr-server.example.com 替换为实际地址）
+asr_file_demo ~/.cache/models/assets/audio/001_zh_daily_weather.wav \
+  --engine qwen3-asr --endpoint http://asr-server.example.com:8063/v1/chat/completions
 ```
 
 **C++ 文件识别（Fun-ASR，需先启动 llama-server）：**
 
 ```bash
 asr_file_demo ~/.cache/models/assets/audio/001_zh_daily_weather.wav --engine funasr
-# 指定远程服务器
-asr_file_demo audio.wav --engine funasr \
-  --endpoint http://10.0.90.72:8063/v1/audio/transcriptions
+# 指定远程服务器（将 asr-server.example.com 替换为实际地址）
+asr_file_demo ~/.cache/models/assets/audio/001_zh_daily_weather.wav --engine funasr \
+  --endpoint http://asr-server.example.com:8063/v1/audio/transcriptions
+```
+
+**C++ 文件转写或翻译（Gemma4 ASR，需先启动 llama-server）：**
+
+```bash
+# 原语言转写
+asr_file_demo ~/.cache/models/assets/audio/001_zh_daily_weather.wav \
+  --engine gemma4-asr --task transcribe
+
+# 外语语音翻译为英文
+asr_file_demo ~/.cache/models/assets/audio/024_ja_funasr_sample.mp3 \
+  --engine gemma4-asr --task translate
 ```
 
 **Python 文件识别**（直接运行 `python python/examples/...` 前，需当前 Python 环境已安装 wheel，或设置 `PYTHONPATH` 指向 SDK 构建产物）：
 
 ```bash
 python python/examples/asr_file_demo.py ~/.cache/models/assets/audio/001_zh_daily_weather.wav
+python python/examples/asr_file_demo.py ~/.cache/models/assets/audio/024_ja_funasr_sample.mp3 \
+  --engine gemma4-asr --task translate
 ```
 
 **流式识别**（SDK 编译时默认已开启，可直接运行）：
@@ -306,6 +395,10 @@ export SPACEMIT_EP_DISABLE_OP_TYPE_FILTER="Conv"
 
 # Fun-ASR（需先启动 llama-server，见 2.2.3）
 ./bin/asr_file_demo ~/.cache/models/assets/audio/001_zh_daily_weather.wav --engine funasr
+
+# Gemma4 ASR 英文翻译（需先启动 llama-server，见 2.2.4）
+./bin/asr_file_demo ~/.cache/models/assets/audio/024_ja_funasr_sample.mp3 \
+  --engine gemma4-asr --task translate
 ```
 
 **Python 文件识别：**
@@ -401,6 +494,7 @@ target_include_directories(your_target PRIVATE ${ASR_SOURCE_DIR}/include)
 | 流式采集报设备错误 | 默认输入设备不符合预期 | 先运行 `asr_stream_demo -l`，再用 `-i <id>` 指定设备。 |
 | Zipformer 报 SpaceMIT EP/Conv 相关错误 | 当前 K3 + SpaceMIT EP 下 `Conv` 算子存在临时兼容问题 | 运行前设置 `SPACEMIT_EP_DISABLE_OP_TYPE_FILTER="Conv"`。 |
 | Fun-ASR 调用失败 | `llama-server` 未启动或 transcription endpoint 不正确 | 用 `/health` 确认服务状态，并检查 endpoint 是否以 `/v1/audio/transcriptions` 结尾。 |
+| Gemma4 ASR 返回空文本或耗时异常 | llama-server 未关闭 reasoning，或版本低于 0.1.7 | 使用 `llama.cpp-tools-spacemit >= 0.1.7`，并以 `--reasoning off` 启动服务。 |
 | Qwen3-ASR 调用失败 | `llama-server` 未启动或 endpoint 不正确 | 用 `curl http://127.0.0.1:8063/health` 确认服务状态。 |
 | Qwen3-ASR 启动失败或被 kill | 8G 内存板卡可能内存不足 | 检查系统内存；如必须在 8G 板卡上运行，先配置 swap 后再启动 `llama-server`。 |
 
@@ -410,6 +504,8 @@ target_include_directories(your_target PRIVATE ${ASR_SOURCE_DIR}/include)
 
 | 版本   | 说明 |
 | ------ | ---- |
+| 1.0.4  | 新增 Gemma4 ASR 原语言转写与外语语音转英文能力。 |
+| 1.0.3  | 新增独立的 Fun-ASR Nano 后端及对应的 C++、Python 文件识别接口。 |
 | 1.0.2  | 同步 C++、Python、组件清单和各 backend 版本号，用于发布包含 SenseVoice 情绪识别开关的 ASR 包。 |
 | 0.1.0  | 提供 C++ / Python 接口，支持 SenseVoice、Zipformer CTC、Qwen3-ASR，文件/内存阻塞识别与流式识别。 |
 
@@ -465,23 +561,39 @@ target_include_directories(your_target PRIVATE ${ASR_SOURCE_DIR}/include)
 | 测试文件 | 语言 | 音频时长 | 第 1 轮处理时间 | 第 1 轮 RTF | 第 2 轮处理时间 | 第 2 轮 RTF |
 |----------|------|----------|-----------------|------------|-----------------|------------|
 | 004_zh_selling_sausages.wav | 中文 | 14158 ms | 3804 ms | 0.269 | 3793 ms | 0.268 |
-| 官方 en.mp3 | 英文 | 7176 ms | 1555 ms | 0.217 | 1561 ms | 0.217 |
-| 官方 ja.mp3 | 日文 | 7224 ms | 1706 ms | 0.236 | 1709 ms | 0.236 |
+| 023_en_funasr_sample.mp3 | 英文 | 7176 ms | 1555 ms | 0.217 | 1561 ms | 0.217 |
+| 024_ja_funasr_sample.mp3 | 日文 | 7224 ms | 1706 ms | 0.236 | 1709 ms | 0.236 |
 | **每轮合计** | - | **28558 ms** | **7065 ms** | **0.247** | **7063 ms** | **0.247** |
 
 三条音频均成功返回对应语言的识别文本。以上 RTF 包含 SDK 文件读取、音频转换、
 HTTP multipart 传输和 llama-server 推理时间，不是单独的模型 kernel 耗时。
 
+### Gemma4 ASR (Q4_0, llama-server 0.1.7, K3)
+
+服务使用 `-t 8 -tb 8 -c 4096 --warmup --jinja --reasoning off
+--no-cache-prompt`。SDK 从干净源码构建，以下数据由 `asr_file_demo` 端到端测得。
+
+| 任务 | 音频 | 音频时长 | 处理时间 | RTF | 结果 |
+|------|------|----------|----------|-----|------|
+| 中文转写 | `001_zh_daily_weather.wav`（稳态） | 1619 ms | 1316-1367 ms | 0.812-0.844 | 今天天气怎么样? |
+| 中文转写 | `004_zh_selling_sausages.wav` | 14158 ms | 9758 ms | 0.689 | 完成 |
+| 日语转英文 | `024_ja_funasr_sample.mp3` | 7224 ms | 4425-4497 ms | 0.613-0.623 | 两轮输出一致 |
+| 韩语转英文 | `025_ko_funasr_sample.mp3` | 4644 ms | 2520-2538 ms | 0.543-0.547 | 两轮输出一致 |
+| 粤语转英文 | `026_yue_funasr_sample.mp3` | 5184 ms | 2854-2869 ms | 0.551-0.553 | 两轮输出一致 |
+
+RTF 包含 SDK 文件读取、音频转换、HTTP multipart 传输和 llama-server
+推理时间。服务启动后的首个音频请求还会初始化动态 ONNX encoder session；
+本次 `024_ja_funasr_sample.mp3` 的首请求为 12567 ms（RTF 1.740），未计入
+上表稳态数据。
+
+新增的日语、韩语和粤语公开样例在同一预热服务中连续测试两轮，总音频时长
+34104 ms，总处理时间 19703 ms，端到端 RTF 为 0.578。该测试用于验证接口、
+输出稳定性和性能，不替代带参考译文的翻译质量评测。
+
 ### Zipformer CTC (CPU, 4 线程)
 
 | 测试文件 | 音频时长 | 处理时间 | RTF |
 |----------|----------|----------|-----|
-| ref.wav (14s 中文) | 14158 ms | 6622 ms | 0.468 |
+| 004_zh_selling_sausages.wav | 14158 ms | 6622 ms | 0.468 |
 
-测试音频文件可从 [archive.spacemit.com](https://archive.spacemit.com/spacemit-ai/model_zoo/assets/audio) 下载：
-```bash
-mkdir -p ~/.cache/models/assets/audio
-cd ~/.cache/models/assets/audio
-wget https://archive.spacemit.com/spacemit-ai/model_zoo/assets/audio/001_zh_daily_weather.wav
-./build/bin/asr_file_demo ~/.cache/models/assets/audio/001_zh_daily_weather.wav
-```
+测试音频的文件名、用途和下载方式见 [2.3. 下载测试资源](#23-下载测试资源)。

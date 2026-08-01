@@ -59,12 +59,12 @@ private:
 
 void printUsage(const char* program) {
     std::cout << "Usage: " << program
-        << " <audio1.wav> [audio2.wav ...] [OPTIONS]"
+        << " <audio1> [audio2 ...] [OPTIONS]"
         << std::endl;
     std::cout << std::endl;
     std::cout << "Arguments:" << std::endl;
-    std::cout << "  audio files   One or more WAV audio files" << std::endl;
-    std::cout << "  --engine      Engine: sensevoice | zipformer | funasr | qwen3-asr"
+    std::cout << "  audio files   One or more audio files (for example WAV or MP3)" << std::endl;
+    std::cout << "  --engine      Engine: sensevoice | zipformer | funasr | qwen3-asr | gemma4-asr"
         << " (default: sensevoice)" << std::endl;
     std::cout << "  --model-dir   Path to SenseVoice model directory" << std::endl;
     std::cout << "                Default: ~/.cache/models/asr/sensevoice" << std::endl;
@@ -73,20 +73,25 @@ void printUsage(const char* program) {
     std::cout << "  --hotwords    Comma-separated hotwords (e.g. \"SpacemiT,进迭时空\")" << std::endl;
     std::cout << "  --hotword-boost  Hotword boost weight (default: 2.0)" << std::endl;
     std::cout << "  --enable-emotion  Enable SenseVoice emotion recognition (default: off)" << std::endl;
-    std::cout << "  --endpoint    Fun-ASR/Qwen3-ASR llama-server URL" << std::endl;
-    std::cout << "  --model       Fun-ASR/Qwen3-ASR model tag" << std::endl;
+    std::cout << "  --endpoint    llama-server URL" << std::endl;
+    std::cout << "  --model       llama-server model tag" << std::endl;
     std::cout << "  --timeout     llama-server timeout in seconds (default: 60)" << std::endl;
+    std::cout << "  --task        Gemma4 task: transcribe | translate"
+        << " (default: transcribe)" << std::endl;
     std::cout << std::endl;
     std::cout << "Examples:" << std::endl;
     std::cout << "  " << program << " ~/test.wav" << std::endl;
     std::cout << "  " << program << " a.wav --hotwords \"SpacemiT,进迭时空\" --hotword-boost 3.0" << std::endl;
     std::cout << "  " << program
                 << " a.wav b.wav --engine qwen3-asr"
-                << " --endpoint http://10.0.90.72:8063/v1/chat/completions"
+                << " --endpoint http://asr-server.example.com:8063/v1/chat/completions"
                 << std::endl;
     std::cout << "  " << program
                 << " a.wav --engine funasr"
-                << " --endpoint http://10.0.90.72:8063/v1/audio/transcriptions"
+                << " --endpoint http://asr-server.example.com:8063/v1/audio/transcriptions"
+                << std::endl;
+    std::cout << "  " << program
+                << " 024_ja_funasr_sample.mp3 --engine gemma4-asr --task translate"
                 << std::endl;
     std::cout << "  " << program << " a.wav b.wav --model-dir /path/to/models" << std::endl;
 }
@@ -120,6 +125,7 @@ int main(int argc, char* argv[]) {
     int timeout = 60;
     int rounds = 1;
     bool enable_emotion = false;
+    std::string task = "transcribe";
 
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
@@ -147,6 +153,8 @@ int main(int argc, char* argv[]) {
             model_tag_set = true;
         } else if (arg == "--timeout" && i + 1 < argc) {
             timeout = std::atoi(argv[++i]);
+        } else if (arg == "--task" && i + 1 < argc) {
+            task = argv[++i];
         } else {
             audio_files.push_back(expandHome(argv[i]));
         }
@@ -154,6 +162,12 @@ int main(int argc, char* argv[]) {
 
     if (audio_files.empty()) {
         std::cerr << "Error: no audio files specified" << std::endl;
+        return 1;
+    }
+    if (engine_name == "gemma4-asr" &&
+        task != "transcribe" &&
+        task != "translate") {
+        std::cerr << "Error: --task must be transcribe or translate" << std::endl;
         return 1;
     }
 
@@ -170,11 +184,16 @@ int main(int argc, char* argv[]) {
     config.enable_emotion = enable_emotion;
 
     const bool is_server_backend =
-        engine_name == "funasr" || engine_name == "qwen3-asr";
+        engine_name == "funasr" ||
+        engine_name == "qwen3-asr" ||
+        engine_name == "gemma4-asr";
     if (is_server_backend) {
         if (endpoint_set) config.endpoint = endpoint;
         if (model_tag_set) config.model = model_tag;
         config.timeout = timeout;
+        if (engine_name == "gemma4-asr") {
+            config.task = task;
+        }
     } else {
         if (model_dir_set) {
             config.model_dir = expandHome(model_dir);
@@ -220,6 +239,9 @@ int main(int argc, char* argv[]) {
         std::cout << "Endpoint: " << cfg.endpoint << std::endl;
         std::cout << "Model: " << cfg.model << std::endl;
         std::cout << "Timeout: " << cfg.timeout << "s" << std::endl;
+        if (engine_name == "gemma4-asr") {
+            std::cout << "Task: " << cfg.task << std::endl;
+        }
     } else {
         std::cout << "Provider: " << provider << std::endl;
     }

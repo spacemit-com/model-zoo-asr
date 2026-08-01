@@ -35,7 +35,7 @@ public:
     // Metadata
     BackendType getType() const override { return BackendType::QWEN3_ASR; }
     std::string getName() const override { return "Qwen3-ASR"; }
-    std::string getVersion() const override { return "1.0.2"; }
+    std::string getVersion() const override { return "1.0.4"; }
     bool supportsStreaming() const override { return false; }
 
     std::vector<AudioFormat> getSupportedFormats() const override {

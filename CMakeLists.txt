@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(ASR VERSION 1.0.2 LANGUAGES C CXX)
+project(ASR VERSION 1.0.4 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -85,6 +85,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/FetchSenseVoiceModel.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/FetchZipformerModel.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/FetchQwen3AsrModel.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/FetchFunAsrModel.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/FetchGemma4AsrModel.cmake)
 
 # -------------------------------------------------------
 # Audio Component (optional, for stream demo)
@@ -161,7 +162,9 @@ set(ASR_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/model_downloader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/asr_engine.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/sensevoice/sensevoice_backend.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/llama_audio/llama_audio_client.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/funasr/funasr_backend.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/gemma4_asr/gemma4_asr_backend.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/qwen3_asr/qwen3_asr_backend.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/zipformer/zipformer_backend.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/asr_adapter.cpp

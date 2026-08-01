@@ -25,7 +25,7 @@ namespace sensevoice {
 /**
  * @brief SenseVoice backend version
  */
-constexpr const char* VERSION = "1.0.2";
+constexpr const char* VERSION = "1.0.4";
 
 /**
  * @brief Default model directory

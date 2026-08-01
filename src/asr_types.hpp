@@ -38,6 +38,19 @@ enum class RecognitionMode {
     STREAMING,      // 流式实时模式 - 分块输入音频
 };
 
+enum class RecognitionTask {
+    TRANSCRIBE,     // 将语音转写为原语言文本
+    TRANSLATE,      // 将语音翻译为英文
+};
+
+inline const char* recognitionTaskToString(RecognitionTask task) {
+    switch (task) {
+        case RecognitionTask::TRANSCRIBE: return "transcribe";
+        case RecognitionTask::TRANSLATE:  return "translate";
+        default:                          return "transcribe";
+    }
+}
+
 // =============================================================================
 // Language Codes
 // =============================================================================
@@ -180,6 +193,7 @@ enum class BackendType {
     QWEN3_ASR,      // Qwen3-ASR (llama-server HTTP)
     ZIPFORMER,      // Zipformer CTC (ONNX, 本地流式)
     CUSTOM,         // 自定义后端
+    GEMMA4_ASR,     // Gemma4 ASR/translation (llama-server HTTP)
 };
 
 inline const char* backendTypeToString(BackendType type) {
@@ -190,6 +204,7 @@ inline const char* backendTypeToString(BackendType type) {
         case BackendType::PARAFORMER: return "paraformer";
         case BackendType::QWEN3_ASR:  return "qwen3-asr";
         case BackendType::ZIPFORMER:  return "zipformer";
+        case BackendType::GEMMA4_ASR: return "gemma4-asr";
         case BackendType::CUSTOM:     return "custom";
         default:                      return "unknown";
     }

@@ -16,6 +16,7 @@
 #include <mutex>
 #include <random>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -38,6 +39,17 @@ AsrConfig makeEngineConfig(
         config.model_dir = model_dir;
     }
     return config;
+}
+
+asr::RecognitionTask recognitionTaskFromString(const std::string& task) {
+    if (task == "transcribe") {
+        return asr::RecognitionTask::TRANSCRIBE;
+    }
+    if (task == "translate") {
+        return asr::RecognitionTask::TRANSLATE;
+    }
+    throw std::invalid_argument(
+        "Unsupported ASR task: '" + task + "' (expected 'transcribe' or 'translate')");
 }
 
 }  // namespace
@@ -377,6 +389,12 @@ AsrEngine::AsrEngine(const AsrConfig& config)
 
     // 构建内部配置
     asr::ASRConfig internal_config;
+    const asr::RecognitionTask recognition_task = recognitionTaskFromString(config.task);
+    if (recognition_task == asr::RecognitionTask::TRANSLATE &&
+        config.engine != "gemma4-asr") {
+        throw std::invalid_argument(
+            "Translation task is only supported by the Gemma4 ASR backend");
+    }
 
     if (config.engine == "funasr") {
         internal_config.backend = asr::BackendType::FUNASR;
@@ -396,6 +414,14 @@ AsrEngine::AsrEngine(const AsrConfig& config)
             internal_config.extra_params["model"] = config.model;
         }
         internal_config.extra_params["timeout"] = std::to_string(config.timeout);
+    } else if (config.engine == "gemma4-asr") {
+        internal_config = asr::ASRConfig::gemma4Asr(
+            config.endpoint.empty()
+                ? "http://127.0.0.1:8063/v1/audio/transcriptions"
+                : config.endpoint,
+            config.model.empty() ? "gemma4-asr" : config.model,
+            config.timeout,
+            recognition_task);
     } else if (config.engine == "zipformer") {
         std::string dir =
             config.model_dir.empty() ? "~/.cache/models/asr/zipformer" : config.model_dir;

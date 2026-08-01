@@ -59,6 +59,7 @@ struct ASRConfig {
     // -------------------------------------------------------------------------
 
     RecognitionMode mode = RecognitionMode::OFFLINE;
+    RecognitionTask task = RecognitionTask::TRANSCRIBE;
 
     // -------------------------------------------------------------------------
     // 语言配置
@@ -154,6 +155,21 @@ struct ASRConfig {
         return config;
     }
 
+    /// @brief 创建 Gemma4 llama-server 识别或翻译配置
+    static ASRConfig gemma4Asr(
+            const std::string& endpoint = "http://127.0.0.1:8063/v1/audio/transcriptions",
+            const std::string& model = "gemma4-asr",
+            int timeout = 60,
+            RecognitionTask task = RecognitionTask::TRANSCRIBE) {
+        ASRConfig config;
+        config.backend = BackendType::GEMMA4_ASR;
+        config.task = task;
+        config.extra_params["endpoint"] = endpoint;
+        config.extra_params["model"] = model;
+        config.extra_params["timeout"] = std::to_string(timeout);
+        return config;
+    }
+
     /// @brief 保留旧 FunASR 云端配置入口；当前后端不实现该传输
     static ASRConfig funasrCloud(
             const std::string& api_key,
@@ -180,6 +196,13 @@ struct ASRConfig {
     ASRConfig withLanguage(Language lang) const {
         ASRConfig config = *this;
         config.language = lang;
+        return config;
+    }
+
+    /// @brief 设置识别任务
+    ASRConfig withTask(RecognitionTask recognition_task) const {
+        ASRConfig config = *this;
+        config.task = recognition_task;
         return config;
     }
 
@@ -232,6 +255,13 @@ public:
                     ErrorCode::INVALID_CONFIG,
                     "FunASR cloud transport is not implemented; use ASRConfig::funasr()");
             }
+        }
+
+        if (config.task == RecognitionTask::TRANSLATE &&
+            config.backend != BackendType::GEMMA4_ASR) {
+            return ErrorInfo::error(
+                ErrorCode::INVALID_CONFIG,
+                "Translation task is only supported by the Gemma4 ASR backend");
         }
 
         // 检查采样率

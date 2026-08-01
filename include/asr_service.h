@@ -41,10 +41,11 @@ struct AsrConfig {
     float hotword_boost = 1.0f;
     std::string hotword_file;
 
-    // llama-server settings (used by Fun-ASR and Qwen3-ASR)
+    // llama-server settings (used by Fun-ASR, Qwen3-ASR, and Gemma4 ASR)
     std::string endpoint;
     std::string model;
     int timeout = 60;
+    std::string task = "transcribe";  // "transcribe" or "translate" (Gemma4 ASR)
 
     static AsrConfig Preset(const std::string& name);
     static std::vector<std::string> AvailablePresets();

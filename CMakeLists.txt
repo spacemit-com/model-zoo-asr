@@ -161,6 +161,7 @@ set_target_properties(zipformer PROPERTIES
 set(ASR_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/model_downloader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/asr_engine.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/asr_backend_factory.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/sensevoice/sensevoice_backend.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/llama_audio/llama_audio_client.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/funasr/funasr_backend.cpp

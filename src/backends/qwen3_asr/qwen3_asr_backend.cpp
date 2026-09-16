@@ -4,6 +4,7 @@
  */
 
 #include "qwen3_asr_backend.hpp"
+#include "qwen3_asr_text.hpp"
 
 #include <sndfile.h>
 #include <curl/curl.h>
@@ -384,8 +385,9 @@ ErrorInfo Qwen3ASRBackend::transcribe(
                 << response.substr(0, 300) << std::endl;
 
     // 5. Parse response
-    out_text = extractContent(response);
-    std::cerr << "[Qwen3ASR] Extracted text: [" << out_text << "]" << std::endl;
+    const std::string raw_text = extractContent(response);
+    out_text = qwen3::normalizeTranscript(raw_text);
+    std::cerr << "[Qwen3ASR] Extracted text: [" << raw_text << "] -> [" << out_text << "]" << std::endl;
 
     if (out_text.empty() && response.find("\"choices\"") == std::string::npos)
         return ErrorInfo::error(ErrorCode::INFERENCE_FAILED,

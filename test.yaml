@@ -1,6 +1,15 @@
 module: components/model_zoo/asr
 
 tests:
+  - name: asr-qwen3-text-contract
+    description: Verifies Qwen3-ASR prompt echoes and control tokens are removed from transcripts.
+    category: functional
+    scopes: [pr]
+    timeout_s: 120
+    workdir: sdk
+    command: |
+      bash components/model_zoo/asr/tests/test_qwen3_asr_text_contract.sh
+
   - name: asr-config-contract
     description: Verifies ASR presets, config builders, validation, and audio chunk metadata without loading models.
     category: functional

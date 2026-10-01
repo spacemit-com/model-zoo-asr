@@ -167,6 +167,7 @@ set(ASR_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/funasr/funasr_backend.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/gemma4_asr/gemma4_asr_backend.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/qwen3_asr/qwen3_asr_backend.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/qwen3_asr/qwen3_asr_text.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/zipformer/zipformer_backend.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/asr_adapter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/asr_presets.cpp
